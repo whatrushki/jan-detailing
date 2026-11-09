@@ -1,6 +1,5 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
-import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
 
 /* ============================================================
    GLOBAL STATE & CLOCK
@@ -283,14 +282,10 @@ function initPhotorealisticOrbitalEarth() {
 }
 
 /* ============================================================
-   LOAD FERRARI F40 (WHITE LIBERTY WALK LIVERY)
+   LOAD FERRARI F40 (DIRECT GPU BINARY GLB - NO LAGGY DECODER!)
    ============================================================ */
 function loadFerrariF40() {
   const loader = new GLTFLoader();
-
-  const dracoLoader = new DRACOLoader();
-  dracoLoader.setDecoderPath('assets/draco/');
-  loader.setDRACOLoader(dracoLoader);
 
   loader.load(
     'assets/models/ferrari_f40.glb',
@@ -374,8 +369,9 @@ function startCinematicSequence() {
   const tl = gsap.timeline({
     onComplete: () => {
       isIntroActive = false;
+      // Trigger text flicker ONLY AND STRICTLY when car lands!
       triggerTextFlicker();
-      // Silky seamless blend into mouse interactivity and zero-g floating
+      // Silky seamless blend into mouse/gyro interactivity and zero-g floating
       gsap.to(introBlend, {
         value: 1.0,
         duration: 1.4,
@@ -422,10 +418,11 @@ function triggerTextFlicker() {
 }
 
 /* ============================================================
-   SMOOTH, NATURAL MOUSE, TOUCH & ACCELEROMETER REACTION
+   SMOOTH, NATURAL MOUSE, TOUCH & ACCELEROMETER/GYROSCOPE REACTION
    ============================================================ */
 let hasGyroData = false;
 let initialBeta = null;
+const gyroBtn = document.getElementById('gyroBtn');
 
 function handleOrientation(e) {
   const gamma = e.gamma;
@@ -438,15 +435,19 @@ function handleOrientation(e) {
     initialBeta = beta;
   }
 
-  // Smooth running auto-recalibration if holding position shifts
+  // Smooth running auto-recalibration if holding position shifts drastically
   if (Math.abs(beta - initialBeta) > 40) {
     initialBeta = beta;
   }
 
-  // Tilt left-right: ±15 degrees -> -1 to 1
-  mouse.targetX = Math.max(-1, Math.min(1, gamma / 15));
-  // Tilt forward-backward: ±12 degrees -> -1 to 1
-  mouse.targetY = Math.max(-1, Math.min(1, (beta - initialBeta) / 12));
+  // Left-right tilt (gamma: ±15 deg mapped to -1.0 .. 1.0 for lively response)
+  const clampedGamma = Math.max(-15, Math.min(15, gamma));
+  mouse.targetX = clampedGamma / 15;
+
+  // Forward-backward tilt (beta deviation from holding angle: ±12 deg mapped to -1.0 .. 1.0)
+  const deltaBeta = beta - initialBeta;
+  const clampedBeta = Math.max(-12, Math.min(12, deltaBeta));
+  mouse.targetY = clampedBeta / 12;
 }
 
 function handleMotion(e) {
@@ -454,36 +455,57 @@ function handleMotion(e) {
   const acc = e.accelerationIncludingGravity;
   if (typeof acc.x !== 'number' || typeof acc.y !== 'number' || isNaN(acc.x) || isNaN(acc.y)) return;
 
-  // If orientation angles didn't trigger, accelerometer takes over immediately:
   if (!hasGyroData) {
-    mouse.targetX = Math.max(-1, Math.min(1, -acc.x / 4.0));
-    mouse.targetY = Math.max(-1, Math.min(1, (acc.y - 7.5) / 4.0));
+    // Upright phone: acc.x ≈ 0, acc.y ≈ 9.8. Tilting right gives positive or negative acc.x
+    const normX = Math.max(-1, Math.min(1, -acc.x / 4.0));
+    const normY = Math.max(-1, Math.min(1, (acc.y - 7.5) / 4.0));
+    mouse.targetX = normX;
+    mouse.targetY = normY;
+  }
+}
+
+function requestSensorPermission() {
+  if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
+    DeviceOrientationEvent.requestPermission()
+      .then((state) => {
+        if (state === 'granted') {
+          window.addEventListener('deviceorientation', handleOrientation, true);
+          window.addEventListener('deviceorientationabsolute', handleOrientation, true);
+          window.addEventListener('devicemotion', handleMotion, true);
+          if (gyroBtn) gyroBtn.style.display = 'none';
+        }
+      })
+      .catch((err) => {
+        console.warn('Gyro permission rejected:', err);
+      });
   }
 }
 
 function initSensors() {
-  // Attach all mobile motion listeners (works out of the box on Android)
-  window.addEventListener('deviceorientation', handleOrientation, true);
-  window.addEventListener('deviceorientationabsolute', handleOrientation, true);
-  window.addEventListener('devicemotion', handleMotion, true);
-
-  // iOS Safari requires explicit request on first touch
+  // iOS 13+ requires user permission triggered on a user gesture
   if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
-    const onFirstTouch = () => {
-      DeviceOrientationEvent.requestPermission()
-        .then((state) => {
-          if (state === 'granted') {
-            window.addEventListener('deviceorientation', handleOrientation, true);
-            window.addEventListener('deviceorientationabsolute', handleOrientation, true);
-            window.addEventListener('devicemotion', handleMotion, true);
-          }
-        })
-        .catch(() => {});
-      window.removeEventListener('touchstart', onFirstTouch);
-      window.removeEventListener('pointerdown', onFirstTouch);
+    if (gyroBtn) {
+      gyroBtn.style.display = 'block';
+      gyroBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        requestSensorPermission();
+      });
+    }
+
+    // Also trigger on first screen tap anywhere
+    const onFirstUserTap = () => {
+      requestSensorPermission();
+      window.removeEventListener('touchend', onFirstUserTap);
+      window.removeEventListener('click', onFirstUserTap);
     };
-    window.addEventListener('touchstart', onFirstTouch, { once: true });
-    window.addEventListener('pointerdown', onFirstTouch, { once: true });
+    window.addEventListener('touchend', onFirstUserTap, { once: true });
+    window.addEventListener('click', onFirstUserTap, { once: true });
+  } else {
+    // Android Chrome & standard browsers: activate sensors immediately!
+    window.addEventListener('deviceorientation', handleOrientation, true);
+    window.addEventListener('deviceorientationabsolute', handleOrientation, true);
+    window.addEventListener('devicemotion', handleMotion, true);
+    if (gyroBtn) gyroBtn.style.display = 'none';
   }
 
   window.addEventListener('orientationchange', () => {
@@ -494,7 +516,7 @@ function initSensors() {
 function initEvents() {
   window.addEventListener('resize', onWindowResize);
 
-  // Desktop mouse movement
+  // Mouse move on desktop
   window.addEventListener('pointermove', (e) => {
     if (e.pointerType === 'mouse') {
       mouse.targetX = (e.clientX - windowHalf.x) / windowHalf.x;
@@ -502,17 +524,14 @@ function initEvents() {
     }
   });
 
-  // Mobile silky-smooth touch drag
-  const onTouch = (e) => {
+  // Touch drag on mobile (complimentary to gyro)
+  window.addEventListener('touchmove', (e) => {
     if (e.touches && e.touches.length > 0) {
       const touch = e.touches[0];
       mouse.targetX = (touch.clientX - windowHalf.x) / windowHalf.x;
       mouse.targetY = (touch.clientY - windowHalf.y) / windowHalf.y;
     }
-  };
-
-  window.addEventListener('touchmove', onTouch, { passive: true });
-  window.addEventListener('touchstart', onTouch, { passive: true });
+  }, { passive: true });
 
   initSensors();
 }
@@ -542,7 +561,7 @@ function animate() {
 
   const elapsedTime = clock.getElapsedTime();
 
-  // Smooth mouse/touch/gyro easing (responsive on mobile sensors)
+  // Smooth mouse/touch/gyro easing (faster response for live gyro/accel!)
   const easeSpeed = hasGyroData ? 0.12 : 0.055;
   mouse.x += (mouse.targetX - mouse.x) * easeSpeed;
   mouse.y += (mouse.targetY - mouse.y) * easeSpeed;
@@ -554,14 +573,15 @@ function animate() {
     const targetCamX = mouse.x * 0.38 * blend;
     const targetCamY = -mouse.y * 0.24 * blend;
 
-    camera.position.x += (targetCamX - camera.position.x) * 0.045;
-    camera.position.y += (targetCamY - camera.position.y) * 0.045;
-    camera.position.z += (7.5 - camera.position.z) * 0.045;
+    const camEase = hasGyroData ? 0.10 : 0.045;
+    camera.position.x += (targetCamX - camera.position.x) * camEase;
+    camera.position.y += (targetCamY - camera.position.y) * camEase;
+    camera.position.z += (7.5 - camera.position.z) * camEase;
 
     const targetLookX = -0.35 + (mouse.x * 0.10) * blend;
     const targetLookY = 0.15 - (mouse.y * 0.08) * blend;
-    currentLookAt.x += (targetLookX - currentLookAt.x) * 0.045;
-    currentLookAt.y += (targetLookY - currentLookAt.y) * 0.045;
+    currentLookAt.x += (targetLookX - currentLookAt.x) * camEase;
+    currentLookAt.y += (targetLookY - currentLookAt.y) * camEase;
   }
   camera.lookAt(currentLookAt);
 
@@ -594,16 +614,17 @@ function animate() {
     const targetRotY = REST_ROT_Y + (mouse.x * 0.035) * blend;
     const targetRotZ = REST_ROT_Z - (mouse.x * 0.015) * blend;
 
-    carGroup.rotation.x += (targetRotX - carGroup.rotation.x) * 0.03;
-    carGroup.rotation.y += (targetRotY - carGroup.rotation.y) * 0.03;
-    carGroup.rotation.z += (targetRotZ - carGroup.rotation.z) * 0.03;
+    const carEase = hasGyroData ? 0.08 : 0.03;
+    carGroup.rotation.x += (targetRotX - carGroup.rotation.x) * carEase;
+    carGroup.rotation.y += (targetRotY - carGroup.rotation.y) * carEase;
+    carGroup.rotation.z += (targetRotZ - carGroup.rotation.z) * carEase;
 
     // Weightless zero-g floating drift
     const targetPosX = restPos.x + (mouse.x * 0.04) * blend;
     const targetPosY = restPos.y + (-mouse.y * 0.035 + Math.sin(elapsedTime * 0.75) * 0.025) * blend;
 
-    carGroup.position.x += (targetPosX - carGroup.position.x) * 0.03;
-    carGroup.position.y += (targetPosY - carGroup.position.y) * 0.03;
+    carGroup.position.x += (targetPosX - carGroup.position.x) * carEase;
+    carGroup.position.y += (targetPosY - carGroup.position.y) * carEase;
   }
 
   renderer.render(scene, camera);
