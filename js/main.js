@@ -1,32 +1,46 @@
-import * as THREE from 'three';
-import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import * as THREE from './libs/three.module.js';
+import { GLTFLoader } from './libs/GLTFLoader.js';
+
+window.THREE = THREE;
 
 /* ============================================================
-   GLOBAL STATE & CLOCK
+   GLOBAL CONSTANTS & INITIAL STATE
    ============================================================ */
-const clock = new THREE.Clock();
-let scene, camera, renderer;
-let carGroup, carModel;
-let orbitalEarthGroup, earthMesh;
-let starsDeep, starsMid, starsNear;
-let isIntroActive = true;
-const introBlend = { value: 0 };
-const currentLookAt = new THREE.Vector3(-0.35, 0.15, 0);
+var REST_ROT_X = 0.94;
+var REST_ROT_Y = 0.46;
+var REST_ROT_Z = -0.44;
 
-// Directional Sun in space (Top-Right to match Earth cloud shadow angle)
-const sunPosition = new THREE.Vector3(26, 30, 20);
+var clock = new THREE.Clock();
+var sunPosition = new THREE.Vector3(26, 30, 20);
+var currentLookAt = new THREE.Vector3(-0.35, 0.15, 0);
+var introBlend = { value: 0 };
 
-// Expose state for inspection
+var mouse = { x: 0, y: 0, targetX: 0, targetY: 0 };
+var windowHalf = { x: window.innerWidth / 2, y: window.innerHeight / 2 };
+
+var scene, camera, renderer;
+var carGroup, carModel;
+var orbitalEarthGroup, earthMesh;
+var starsDeep, starsMid, starsNear;
+var isIntroActive = true;
+
 window.__state = { carLoaded: false, earthLoaded: false };
-window.scene = scene;
-
-// Smooth mouse tracking with multi-layer inertia
-const mouse = { x: 0, y: 0, targetX: 0, targetY: 0 };
-const windowHalf = { x: window.innerWidth / 2, y: window.innerHeight / 2 };
 
 // DOM
-const canvas = document.getElementById('webgl');
-const flickerItems = document.querySelectorAll('.flicker-item');
+var canvas = document.getElementById('webgl');
+var flickerItems = document.querySelectorAll('.flicker-item');
+
+/* ============================================================
+   RESPONSIVE REST POSITION
+   ============================================================ */
+function getTargetRestPos() {
+  var isDesktop = window.innerWidth > 900;
+  return {
+    x: isDesktop ? -0.92 : 0,
+    y: isDesktop ? 0.36 : 0.98,
+    z: isDesktop ? 2.4 : 1.9
+  };
+}
 
 /* ============================================================
    INITIALIZATION
@@ -48,12 +62,11 @@ function initThree() {
   window.scene = scene;
 
   camera = new THREE.PerspectiveCamera(35, window.innerWidth / window.innerHeight, 0.1, 4000);
-  // Initial camera position matches the exact starting point of the cinematic dive (NO jump on load!)
   camera.position.set(0.2, 0.3, 10.0);
   camera.lookAt(currentLookAt);
 
   renderer = new THREE.WebGLRenderer({
-    canvas,
+    canvas: canvas,
     antialias: true,
     powerPreference: 'high-performance'
   });
@@ -62,7 +75,6 @@ function initThree() {
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
   renderer.toneMappingExposure = 1.15;
 
-  // Unified Cosmic Environment: binds car reflections to Earth & cosmic space
   scene.environment = createSpaceEnvironment();
 
   carGroup = new THREE.Group();
@@ -75,25 +87,23 @@ function initThree() {
    COSMIC ENVIRONMENT MAP (PHYSICAL IBL REFLECTIONS)
    ============================================================ */
 function createSpaceEnvironment() {
-  const envCanvas = document.createElement('canvas');
+  var envCanvas = document.createElement('canvas');
   envCanvas.width = 1024;
   envCanvas.height = 512;
-  const ctx = envCanvas.getContext('2d');
+  var ctx = envCanvas.getContext('2d');
 
-  // Deep space gradient with radiant blue Earth albedo on the lower hemisphere
-  const grad = ctx.createLinearGradient(0, 0, 0, 512);
+  var grad = ctx.createLinearGradient(0, 0, 0, 512);
   grad.addColorStop(0.0, '#000002');
   grad.addColorStop(0.46, '#010408');
-  grad.addColorStop(0.55, '#051b3b'); // Ethereal atmospheric horizon glow
-  grad.addColorStop(0.72, '#12437a'); // Deep Pacific ocean reflection
-  grad.addColorStop(0.88, '#2667ab'); // Cloud reflectance
+  grad.addColorStop(0.55, '#051b3b');
+  grad.addColorStop(0.72, '#12437a');
+  grad.addColorStop(0.88, '#2667ab');
   grad.addColorStop(1.0, '#0a233d');
 
   ctx.fillStyle = grad;
   ctx.fillRect(0, 0, 1024, 512);
 
-  // Radiant orbital Sun highlight in upper right
-  const sunGrad = ctx.createRadialGradient(720, 140, 0, 720, 140, 90);
+  var sunGrad = ctx.createRadialGradient(720, 140, 0, 720, 140, 90);
   sunGrad.addColorStop(0, '#ffffff');
   sunGrad.addColorStop(0.2, '#f8fafc');
   sunGrad.addColorStop(0.6, 'rgba(255,255,255,0.18)');
@@ -103,60 +113,54 @@ function createSpaceEnvironment() {
   ctx.arc(720, 140, 90, 0, Math.PI * 2);
   ctx.fill();
 
-  const envTex = new THREE.CanvasTexture(envCanvas);
+  var envTex = new THREE.CanvasTexture(envCanvas);
   envTex.mapping = THREE.EquirectangularReflectionMapping;
-  envTex.colorSpace = THREE.SRGBColorSpace;
   return envTex;
 }
 
 /* ============================================================
-   POWERFUL CINEMATIC SPACE LIGHTING (VACUUM CONTRAST)
+   POWERFUL CINEMATIC SPACE LIGHTING
    ============================================================ */
 function initCinematicSunlight() {
-  // Ambient cosmic vacuum: deep, cold dark
-  const ambient = new THREE.AmbientLight(0x0a101d, 0.45);
+  var ambient = new THREE.AmbientLight(0x0a101d, 0.45);
   scene.add(ambient);
 
-  // Key Sun (Matching real sun position from Earth cloud shadows)
-  const sunLight = new THREE.DirectionalLight(0xffffff, 4.4);
+  var sunLight = new THREE.DirectionalLight(0xffffff, 4.4);
   sunLight.position.copy(sunPosition);
   sunLight.target.position.set(-0.5, 0.2, 0);
   scene.add(sunLight);
   scene.add(sunLight.target);
 
-  // Earth Albedo bounce: soft upward blue/cyan glow reflecting from oceans
-  const earthBounce = new THREE.DirectionalLight(0x2563eb, 0.65);
+  var earthBounce = new THREE.DirectionalLight(0x2563eb, 0.65);
   earthBounce.position.set(-15, -25, 8);
   earthBounce.target.position.set(0, 0, 0);
   scene.add(earthBounce);
   scene.add(earthBounce.target);
 
-  // Space rim highlight on spoiler & roof edge
-  const rimLight = new THREE.DirectionalLight(0xf1f5f9, 1.4);
+  var rimLight = new THREE.DirectionalLight(0xf1f5f9, 1.4);
   rimLight.position.set(-20, 20, -10);
   scene.add(rimLight);
 }
 
 /* ============================================================
-   TRUE CINEMATIC DEEP SPACE (3-TIER PARALLAX, REAL DEPTH)
+   TRUE CINEMATIC DEEP SPACE
    ============================================================ */
 function initDeepCosmosWithLayers() {
-  // LAYER 1: Distant Galactic Dust & Faint Stars
-  const deepCount = 8000;
-  const deepGeo = new THREE.BufferGeometry();
-  const deepPos = new Float32Array(deepCount * 3);
-  const deepCol = new Float32Array(deepCount * 3);
+  var deepCount = 8000;
+  var deepGeo = new THREE.BufferGeometry();
+  var deepPos = new Float32Array(deepCount * 3);
+  var deepCol = new Float32Array(deepCount * 3);
 
-  for (let i = 0; i < deepCount; i++) {
-    const r = 900 + Math.random() * 1200;
-    const theta = Math.random() * Math.PI * 2;
-    const phi = Math.acos(2 * Math.random() - 1);
+  for (var i = 0; i < deepCount; i++) {
+    var r = 900 + Math.random() * 1200;
+    var theta = Math.random() * Math.PI * 2;
+    var phi = Math.acos(2 * Math.random() - 1);
 
     deepPos[i * 3]     = r * Math.sin(phi) * Math.cos(theta);
     deepPos[i * 3 + 1] = r * Math.sin(phi) * Math.sin(theta);
     deepPos[i * 3 + 2] = r * Math.cos(phi);
 
-    const bri = Math.pow(Math.random(), 4.0) * 0.5 + 0.08;
+    var bri = Math.pow(Math.random(), 4.0) * 0.5 + 0.08;
     deepCol[i * 3]     = bri * 0.92;
     deepCol[i * 3 + 1] = bri * 0.96;
     deepCol[i * 3 + 2] = bri * 1.05;
@@ -172,25 +176,24 @@ function initDeepCosmosWithLayers() {
   }));
   scene.add(starsDeep);
 
-  // LAYER 2: Mid-range Crisp Stars
-  const midCount = 2800;
-  const midGeo = new THREE.BufferGeometry();
-  const midPos = new Float32Array(midCount * 3);
-  const midCol = new Float32Array(midCount * 3);
+  var midCount = 2800;
+  var midGeo = new THREE.BufferGeometry();
+  var midPos = new Float32Array(midCount * 3);
+  var midCol = new Float32Array(midCount * 3);
 
-  for (let i = 0; i < midCount; i++) {
-    const r = 450 + Math.random() * 450;
-    const theta = Math.random() * Math.PI * 2;
-    const phi = Math.acos(2 * Math.random() - 1);
+  for (var j = 0; j < midCount; j++) {
+    var rMid = 450 + Math.random() * 450;
+    var thetaMid = Math.random() * Math.PI * 2;
+    var phiMid = Math.acos(2 * Math.random() - 1);
 
-    midPos[i * 3]     = r * Math.sin(phi) * Math.cos(theta);
-    midPos[i * 3 + 1] = r * Math.sin(phi) * Math.sin(theta);
-    midPos[i * 3 + 2] = r * Math.cos(phi);
+    midPos[j * 3]     = rMid * Math.sin(phiMid) * Math.cos(thetaMid);
+    midPos[j * 3 + 1] = rMid * Math.sin(phiMid) * Math.sin(thetaMid);
+    midPos[j * 3 + 2] = rMid * Math.cos(phiMid);
 
-    const bri = Math.pow(Math.random(), 3.0) * 0.75 + 0.25;
-    midCol[i * 3]     = bri;
-    midCol[i * 3 + 1] = bri * 0.98;
-    midCol[i * 3 + 2] = bri * 1.02;
+    var briMid = Math.pow(Math.random(), 3.0) * 0.75 + 0.25;
+    midCol[j * 3]     = briMid;
+    midCol[j * 3 + 1] = briMid * 0.98;
+    midCol[j * 3 + 2] = briMid * 1.02;
   }
   midGeo.setAttribute('position', new THREE.BufferAttribute(midPos, 3));
   midGeo.setAttribute('color', new THREE.BufferAttribute(midCol, 3));
@@ -203,25 +206,24 @@ function initDeepCosmosWithLayers() {
   }));
   scene.add(starsMid);
 
-  // LAYER 3: Foreground Brilliant Beacons
-  const nearCount = 350;
-  const nearGeo = new THREE.BufferGeometry();
-  const nearPos = new Float32Array(nearCount * 3);
-  const nearCol = new Float32Array(nearCount * 3);
+  var nearCount = 350;
+  var nearGeo = new THREE.BufferGeometry();
+  var nearPos = new Float32Array(nearCount * 3);
+  var nearCol = new Float32Array(nearCount * 3);
 
-  for (let i = 0; i < nearCount; i++) {
-    const r = 250 + Math.random() * 250;
-    const theta = Math.random() * Math.PI * 2;
-    const phi = Math.acos(2 * Math.random() - 1);
+  for (var k = 0; k < nearCount; k++) {
+    var rNear = 250 + Math.random() * 250;
+    var thetaNear = Math.random() * Math.PI * 2;
+    var phiNear = Math.acos(2 * Math.random() - 1);
 
-    nearPos[i * 3]     = r * Math.sin(phi) * Math.cos(theta);
-    nearPos[i * 3 + 1] = r * Math.sin(phi) * Math.sin(theta);
-    nearPos[i * 3 + 2] = r * Math.cos(phi);
+    nearPos[k * 3]     = rNear * Math.sin(phiNear) * Math.cos(thetaNear);
+    nearPos[k * 3 + 1] = rNear * Math.sin(phiNear) * Math.sin(thetaNear);
+    nearPos[k * 3 + 2] = rNear * Math.cos(phiNear);
 
-    const warm = Math.random() > 0.65;
-    nearCol[i * 3]     = warm ? 1.0 : 0.88;
-    nearCol[i * 3 + 1] = warm ? 0.94 : 0.96;
-    nearCol[i * 3 + 2] = warm ? 0.78 : 1.0;
+    var warm = Math.random() > 0.65;
+    nearCol[k * 3]     = warm ? 1.0 : 0.88;
+    nearCol[k * 3 + 1] = warm ? 0.94 : 0.96;
+    nearCol[k * 3 + 2] = warm ? 0.78 : 1.0;
   }
   nearGeo.setAttribute('position', new THREE.BufferAttribute(nearPos, 3));
   nearGeo.setAttribute('color', new THREE.BufferAttribute(nearCol, 3));
@@ -236,41 +238,38 @@ function initDeepCosmosWithLayers() {
 }
 
 /* ============================================================
-   PHOTOREALISTIC ORBITAL EARTH (NASA ISS HIGH-RES DETAIL)
+   PHOTOREALISTIC ORBITAL EARTH
    ============================================================ */
 function initPhotorealisticOrbitalEarth() {
-  const textureLoader = new THREE.TextureLoader();
-  const maxAniso = renderer.capabilities.getMaxAnisotropy();
+  var textureLoader = new THREE.TextureLoader();
+  var maxAniso = renderer.capabilities.getMaxAnisotropy();
 
   orbitalEarthGroup = new THREE.Group();
-  // Deep blue Pacific ocean with natural anvil cloud clusters directly behind car
   orbitalEarthGroup.position.set(-3.2, -2.4, -22.0);
   orbitalEarthGroup.rotation.z = -0.13;
 
-  // Curved 3D Orbital Surface geometry
-  const width = 54;
-  const height = 36;
-  const segW = 64;
-  const segH = 64;
-  const earthGeo = new THREE.PlaneGeometry(width, height, segW, segH);
+  var width = 54;
+  var height = 36;
+  var segW = 64;
+  var segH = 64;
+  var earthGeo = new THREE.PlaneGeometry(width, height, segW, segH);
 
-  const posAttr = earthGeo.attributes.position;
-  for (let i = 0; i < posAttr.count; i++) {
-    const x = posAttr.getX(i);
-    const y = posAttr.getY(i);
-    const distSq = (x * x) * 0.006 + (y * y) * 0.004;
+  var posAttr = earthGeo.attributes.position;
+  for (var i = 0; i < posAttr.count; i++) {
+    var x = posAttr.getX(i);
+    var y = posAttr.getY(i);
+    var distSq = (x * x) * 0.006 + (y * y) * 0.004;
     posAttr.setZ(i, -distSq);
   }
   earthGeo.computeVertexNormals();
 
-  // Authentic NASA ISS photograph (4256x2832)
-  const orbitalTex = textureLoader.load('assets/textures/earth_orbital_borneo.jpg', () => {
+  var orbitalTex = textureLoader.load('assets/textures/earth_orbital_borneo.jpg', function() {
     window.__state.earthLoaded = true;
   });
   orbitalTex.colorSpace = THREE.SRGBColorSpace;
   orbitalTex.anisotropy = maxAniso;
 
-  const earthMat = new THREE.MeshBasicMaterial({
+  var earthMat = new THREE.MeshBasicMaterial({
     map: orbitalTex,
     toneMapped: true
   });
@@ -282,34 +281,31 @@ function initPhotorealisticOrbitalEarth() {
 }
 
 /* ============================================================
-   LOAD FERRARI F40 (DIRECT GPU BINARY GLB - NO LAGGY DECODER!)
+   LOAD FERRARI F40 (DIRECT GLB)
    ============================================================ */
 function loadFerrariF40() {
-  const loader = new GLTFLoader();
+  var loader = new GLTFLoader();
 
   loader.load(
     'assets/models/ferrari_f40.glb',
-    (gltf) => {
+    function(gltf) {
       carModel = gltf.scene;
 
-      // Center model pivot
-      const box = new THREE.Box3().setFromObject(carModel);
-      const size = box.getSize(new THREE.Vector3());
-      const center = box.getCenter(new THREE.Vector3());
+      var box = new THREE.Box3().setFromObject(carModel);
+      var size = box.getSize(new THREE.Vector3());
+      var center = box.getCenter(new THREE.Vector3());
 
       carModel.position.x = -center.x;
       carModel.position.y = -center.y;
       carModel.position.z = -center.z;
 
-      const maxDim = Math.max(size.x, size.y, size.z);
-      // Hero scale with balanced margins
-      const targetScale = 3.25 / maxDim;
+      var maxDim = Math.max(size.x, size.y, size.z);
+      var targetScale = 3.25 / maxDim;
       carModel.scale.setScalar(targetScale);
 
-      // Supreme ceramic detailing clearcoat: pure glossy white body with sharp reflections
-      carModel.traverse((node) => {
+      carModel.traverse(function(node) {
         if (node.isMesh && node.material) {
-          const mat = node.material;
+          var mat = node.material;
           if (mat.roughness !== undefined) {
             mat.roughness = Math.min(mat.roughness, 0.10);
           }
@@ -327,36 +323,21 @@ function loadFerrariF40() {
       window.__carModel = carModel;
       window.__state.carLoaded = true;
 
-      // Start the cinematic entrance sequence
       startCinematicSequence();
     },
     undefined,
-    (err) => {
+    function(err) {
       console.error('Error loading car:', err);
     }
   );
 }
 
 /* ============================================================
-   CINEMATIC SEQUENCE: BALANCED MARGINS, HEADLIGHTS IN VIEW
+   CINEMATIC SEQUENCE
    ============================================================ */
-const REST_ROT_X = 0.94;
-const REST_ROT_Y = 0.46;
-const REST_ROT_Z = -0.44;
-
-function getTargetRestPos() {
-  const isDesktop = window.innerWidth > 900;
-  return {
-    x: isDesktop ? -0.92 : 0,   // Indented from left edge with generous breathing room
-    y: isDesktop ? 0.36 : 0.98,  // Lifted on mobile to give perfect breathing room above centered branding!
-    z: isDesktop ? 2.4 : 1.9    // Perfectly framed on narrow mobile screens
-  };
-}
-
 function startCinematicSequence() {
-  const restPos = getTargetRestPos();
+  var restPos = getTargetRestPos();
 
-  // HIGH-ENERGY ENTRY: Starts from deep space spinning & tumbling dynamically!
   carGroup.position.set(restPos.x + 1.2, restPos.y + 4.8, -60);
   carGroup.rotation.set(
     REST_ROT_X + Math.PI * 2.0,
@@ -365,13 +346,11 @@ function startCinematicSequence() {
   );
   carGroup.visible = true;
 
-  // Camera is already at (0.2, 0.3, 10.0) from page init — NO sudden pop!
-  const tl = gsap.timeline({
-    onComplete: () => {
+  var tl = gsap.timeline({
+    onComplete: function() {
       isIntroActive = false;
-      // Trigger text flicker ONLY AND STRICTLY when car lands!
+      // Trigger text flicker ONLY when car lands!
       triggerTextFlicker();
-      // Silky seamless blend into mouse/gyro interactivity and zero-g floating
       gsap.to(introBlend, {
         value: 1.0,
         duration: 1.4,
@@ -380,7 +359,6 @@ function startCinematicSequence() {
     }
   });
 
-  // Majestic, slightly slower 2.8s entrance allowing full visual appreciation
   tl.to(camera.position, {
     x: 0,
     y: 0,
@@ -407,133 +385,39 @@ function startCinematicSequence() {
 }
 
 /* ============================================================
-   TEXT FLICKER EFFECT (STROBE BLINK LIKE IN EDITS)
+   TEXT FLICKER EFFECT
    ============================================================ */
 function triggerTextFlicker() {
-  flickerItems.forEach((item, index) => {
-    setTimeout(() => {
+  flickerItems.forEach(function(item, index) {
+    setTimeout(function() {
       item.classList.add('flicker-active');
     }, index * 120);
   });
 }
 
 /* ============================================================
-   SMOOTH, NATURAL MOUSE, TOUCH & ACCELEROMETER/GYROSCOPE REACTION
+   SMOOTH MOUSE & TOUCH REACTION (PURE & ROCK-SOLID)
    ============================================================ */
-let hasGyroData = false;
-let initialBeta = null;
-const gyroBtn = document.getElementById('gyroBtn');
-
-function handleOrientation(e) {
-  const gamma = e.gamma;
-  const beta = e.beta;
-  if (typeof gamma !== 'number' || typeof beta !== 'number' || isNaN(gamma) || isNaN(beta)) return;
-
-  hasGyroData = true;
-
-  if (initialBeta === null) {
-    initialBeta = beta;
-  }
-
-  // Smooth running auto-recalibration if holding position shifts drastically
-  if (Math.abs(beta - initialBeta) > 40) {
-    initialBeta = beta;
-  }
-
-  // Left-right tilt (gamma: ±15 deg mapped to -1.0 .. 1.0 for lively response)
-  const clampedGamma = Math.max(-15, Math.min(15, gamma));
-  mouse.targetX = clampedGamma / 15;
-
-  // Forward-backward tilt (beta deviation from holding angle: ±12 deg mapped to -1.0 .. 1.0)
-  const deltaBeta = beta - initialBeta;
-  const clampedBeta = Math.max(-12, Math.min(12, deltaBeta));
-  mouse.targetY = clampedBeta / 12;
-}
-
-function handleMotion(e) {
-  if (!e.accelerationIncludingGravity) return;
-  const acc = e.accelerationIncludingGravity;
-  if (typeof acc.x !== 'number' || typeof acc.y !== 'number' || isNaN(acc.x) || isNaN(acc.y)) return;
-
-  if (!hasGyroData) {
-    // Upright phone: acc.x ≈ 0, acc.y ≈ 9.8. Tilting right gives positive or negative acc.x
-    const normX = Math.max(-1, Math.min(1, -acc.x / 4.0));
-    const normY = Math.max(-1, Math.min(1, (acc.y - 7.5) / 4.0));
-    mouse.targetX = normX;
-    mouse.targetY = normY;
-  }
-}
-
-function requestSensorPermission() {
-  if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
-    DeviceOrientationEvent.requestPermission()
-      .then((state) => {
-        if (state === 'granted') {
-          window.addEventListener('deviceorientation', handleOrientation, true);
-          window.addEventListener('deviceorientationabsolute', handleOrientation, true);
-          window.addEventListener('devicemotion', handleMotion, true);
-          if (gyroBtn) gyroBtn.style.display = 'none';
-        }
-      })
-      .catch((err) => {
-        console.warn('Gyro permission rejected:', err);
-      });
-  }
-}
-
-function initSensors() {
-  // iOS 13+ requires user permission triggered on a user gesture
-  if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
-    if (gyroBtn) {
-      gyroBtn.style.display = 'block';
-      gyroBtn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        requestSensorPermission();
-      });
-    }
-
-    // Also trigger on first screen tap anywhere
-    const onFirstUserTap = () => {
-      requestSensorPermission();
-      window.removeEventListener('touchend', onFirstUserTap);
-      window.removeEventListener('click', onFirstUserTap);
-    };
-    window.addEventListener('touchend', onFirstUserTap, { once: true });
-    window.addEventListener('click', onFirstUserTap, { once: true });
-  } else {
-    // Android Chrome & standard browsers: activate sensors immediately!
-    window.addEventListener('deviceorientation', handleOrientation, true);
-    window.addEventListener('deviceorientationabsolute', handleOrientation, true);
-    window.addEventListener('devicemotion', handleMotion, true);
-    if (gyroBtn) gyroBtn.style.display = 'none';
-  }
-
-  window.addEventListener('orientationchange', () => {
-    initialBeta = null;
-  });
-}
-
 function initEvents() {
   window.addEventListener('resize', onWindowResize);
 
-  // Mouse move on desktop
-  window.addEventListener('pointermove', (e) => {
+  window.addEventListener('pointermove', function(e) {
     if (e.pointerType === 'mouse') {
       mouse.targetX = (e.clientX - windowHalf.x) / windowHalf.x;
       mouse.targetY = (e.clientY - windowHalf.y) / windowHalf.y;
     }
   });
 
-  // Touch drag on mobile (complimentary to gyro)
-  window.addEventListener('touchmove', (e) => {
+  var onTouch = function(e) {
     if (e.touches && e.touches.length > 0) {
-      const touch = e.touches[0];
+      var touch = e.touches[0];
       mouse.targetX = (touch.clientX - windowHalf.x) / windowHalf.x;
       mouse.targetY = (touch.clientY - windowHalf.y) / windowHalf.y;
     }
-  }, { passive: true });
+  };
 
-  initSensors();
+  window.addEventListener('touchmove', onTouch, { passive: true });
+  window.addEventListener('touchstart', onTouch, { passive: true });
 }
 
 function onWindowResize() {
@@ -546,7 +430,7 @@ function onWindowResize() {
   renderer.setSize(window.innerWidth, window.innerHeight);
 
   if (!isIntroActive && carGroup) {
-    const restPos = getTargetRestPos();
+    var restPos = getTargetRestPos();
     carGroup.position.x = restPos.x;
     carGroup.position.y = restPos.y;
     carGroup.position.z = restPos.z;
@@ -554,38 +438,33 @@ function onWindowResize() {
 }
 
 /* ============================================================
-   RENDER LOOP: SEAMLESS CONTINUITY (ZERO HITCHES OR JUMPS)
+   RENDER LOOP
    ============================================================ */
 function animate() {
   requestAnimationFrame(animate);
 
-  const elapsedTime = clock.getElapsedTime();
+  var elapsedTime = clock.getElapsedTime();
 
-  // Smooth mouse/touch/gyro easing (faster response for live gyro/accel!)
-  const easeSpeed = hasGyroData ? 0.12 : 0.055;
-  mouse.x += (mouse.targetX - mouse.x) * easeSpeed;
-  mouse.y += (mouse.targetY - mouse.y) * easeSpeed;
+  mouse.x += (mouse.targetX - mouse.x) * 0.055;
+  mouse.y += (mouse.targetY - mouse.y) * 0.055;
 
-  const blend = introBlend.value;
+  var blend = introBlend.value;
 
-  // Active Camera Parallax: dynamic orbital rotation that user loves!
   if (!isIntroActive) {
-    const targetCamX = mouse.x * 0.38 * blend;
-    const targetCamY = -mouse.y * 0.24 * blend;
+    var targetCamX = mouse.x * 0.38 * blend;
+    var targetCamY = -mouse.y * 0.24 * blend;
 
-    const camEase = hasGyroData ? 0.10 : 0.045;
-    camera.position.x += (targetCamX - camera.position.x) * camEase;
-    camera.position.y += (targetCamY - camera.position.y) * camEase;
-    camera.position.z += (7.5 - camera.position.z) * camEase;
+    camera.position.x += (targetCamX - camera.position.x) * 0.045;
+    camera.position.y += (targetCamY - camera.position.y) * 0.045;
+    camera.position.z += (7.5 - camera.position.z) * 0.045;
 
-    const targetLookX = -0.35 + (mouse.x * 0.10) * blend;
-    const targetLookY = 0.15 - (mouse.y * 0.08) * blend;
-    currentLookAt.x += (targetLookX - currentLookAt.x) * camEase;
-    currentLookAt.y += (targetLookY - currentLookAt.y) * camEase;
+    var targetLookX = -0.35 + (mouse.x * 0.10) * blend;
+    var targetLookY = 0.15 - (mouse.y * 0.08) * blend;
+    currentLookAt.x += (targetLookX - currentLookAt.x) * 0.045;
+    currentLookAt.y += (targetLookY - currentLookAt.y) * 0.045;
   }
   camera.lookAt(currentLookAt);
 
-  // Multi-tier stellar parallax (deep cosmic planes shifting with camera)
   if (starsNear) {
     starsNear.position.x = -mouse.x * 2.8 * blend;
     starsNear.position.y = mouse.y * 1.8 * blend;
@@ -599,32 +478,27 @@ function animate() {
     starsDeep.position.y = mouse.y * 0.3 * blend;
   }
 
-  // Alive Earth dynamics: rich orbital horizon parallax with mouse + slow cosmic rotation
   if (orbitalEarthGroup) {
     orbitalEarthGroup.position.x = -3.2 - (mouse.x * 0.45) * blend + Math.sin(elapsedTime * 0.03) * 0.10 * blend;
     orbitalEarthGroup.position.y = -2.4 + (mouse.y * 0.30) * blend + Math.cos(elapsedTime * 0.02) * 0.08 * blend;
   }
 
-  // Stable zero-g car response: subtle, silky, NO jerky twitching!
   if (!isIntroActive && carGroup) {
-    const restPos = getTargetRestPos();
+    var restPos = getTargetRestPos();
 
-    // Gentle, silky micro-tilt (no jerky twitching!)
-    const targetRotX = REST_ROT_X - (mouse.y * 0.025) * blend;
-    const targetRotY = REST_ROT_Y + (mouse.x * 0.035) * blend;
-    const targetRotZ = REST_ROT_Z - (mouse.x * 0.015) * blend;
+    var targetRotX = REST_ROT_X - (mouse.y * 0.025) * blend;
+    var targetRotY = REST_ROT_Y + (mouse.x * 0.035) * blend;
+    var targetRotZ = REST_ROT_Z - (mouse.x * 0.015) * blend;
 
-    const carEase = hasGyroData ? 0.08 : 0.03;
-    carGroup.rotation.x += (targetRotX - carGroup.rotation.x) * carEase;
-    carGroup.rotation.y += (targetRotY - carGroup.rotation.y) * carEase;
-    carGroup.rotation.z += (targetRotZ - carGroup.rotation.z) * carEase;
+    carGroup.rotation.x += (targetRotX - carGroup.rotation.x) * 0.03;
+    carGroup.rotation.y += (targetRotY - carGroup.rotation.y) * 0.03;
+    carGroup.rotation.z += (targetRotZ - carGroup.rotation.z) * 0.03;
 
-    // Weightless zero-g floating drift
-    const targetPosX = restPos.x + (mouse.x * 0.04) * blend;
-    const targetPosY = restPos.y + (-mouse.y * 0.035 + Math.sin(elapsedTime * 0.75) * 0.025) * blend;
+    var targetPosX = restPos.x + (mouse.x * 0.04) * blend;
+    var targetPosY = restPos.y + (-mouse.y * 0.035 + Math.sin(elapsedTime * 0.75) * 0.025) * blend;
 
-    carGroup.position.x += (targetPosX - carGroup.position.x) * carEase;
-    carGroup.position.y += (targetPosY - carGroup.position.y) * carEase;
+    carGroup.position.x += (targetPosX - carGroup.position.x) * 0.03;
+    carGroup.position.y += (targetPosY - carGroup.position.y) * 0.03;
   }
 
   renderer.render(scene, camera);
