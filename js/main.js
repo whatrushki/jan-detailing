@@ -18,6 +18,9 @@ var isIntroActive = true;
 var introTimeline = null;
 var currentStep = 0;
 var targetStep = 0;
+var stepProgress = { value: 0 };
+var isStepAnimating = false;
+var wheelCooldown = false;
 
 var mouse = { x: 0, y: 0, targetX: 0, targetY: 0 };
 var windowHalf = { x: window.innerWidth / 2, y: window.innerHeight / 2 };
@@ -528,12 +531,33 @@ function updateUIStep(newStep) {
 }
 
 /* ============================================================
-   SCROLL AND INTERACTION EVENTS
+   STEP CONTROLLER & INTERACTION EVENTS
    ============================================================ */
+function goToStep(newStep) {
+  if (isIntroActive) return;
+  if (newStep < 0 || newStep > 4) return;
+  if (newStep === currentStep && !isStepAnimating) return;
+
+  targetStep = newStep;
+  updateUIStep(newStep);
+
+  isStepAnimating = true;
+  var gsapInst = window.gsap || gsap;
+  gsapInst.to(stepProgress, {
+    value: newStep,
+    duration: 1.25,
+    ease: 'power2.out',
+    onComplete: function() {
+      isStepAnimating = false;
+    }
+  });
+}
+window.goToStep = goToStep;
+
 function initScrollAndInteractions() {
   window.addEventListener('resize', onWindowResize);
 
-  // Mouse & Pointer Parallax
+  // Mouse & Pointer Parallax (Subtle tilt only)
   window.addEventListener('pointermove', function(e) {
     if (e.pointerType === 'mouse') {
       mouse.targetX = (e.clientX - windowHalf.x) / windowHalf.x;
@@ -541,57 +565,81 @@ function initScrollAndInteractions() {
     }
   });
 
-  // Touch Drag for Mobile
-  var onTouch = function(e) {
+  // Mouse Wheel & Trackpad Navigation
+  window.addEventListener('wheel', function(e) {
+    if (isIntroActive) return;
+    if (wheelCooldown) return;
+    if (Math.abs(e.deltaY) < 14) return;
+
+    wheelCooldown = true;
+    setTimeout(function() { wheelCooldown = false; }, 650);
+
+    if (e.deltaY > 0) {
+      goToStep(currentStep + 1);
+    } else {
+      goToStep(currentStep - 1);
+    }
+  }, { passive: true });
+
+  // Touch Drag & Swipe for Mobile Devices
+  var touchStartY = 0;
+  window.addEventListener('touchstart', function(e) {
+    if (e.touches && e.touches.length > 0) {
+      touchStartY = e.touches[0].clientY;
+      var touch = e.touches[0];
+      mouse.targetX = (touch.clientX - windowHalf.x) / windowHalf.x;
+      mouse.targetY = (touch.clientY - windowHalf.y) / windowHalf.y;
+    }
+  }, { passive: true });
+
+  window.addEventListener('touchmove', function(e) {
     if (e.touches && e.touches.length > 0) {
       var touch = e.touches[0];
       mouse.targetX = (touch.clientX - windowHalf.x) / windowHalf.x;
       mouse.targetY = (touch.clientY - windowHalf.y) / windowHalf.y;
     }
-  };
-  window.addEventListener('touchmove', onTouch, { passive: true });
+  }, { passive: true });
 
-  // Native Scroll Listener
-  window.addEventListener('scroll', onScroll, { passive: true });
+  window.addEventListener('touchend', function(e) {
+    if (isIntroActive || wheelCooldown) return;
+    if (!e.changedTouches || e.changedTouches.length === 0) return;
+    var touchEndY = e.changedTouches[0].clientY;
+    var diffY = touchStartY - touchEndY;
 
-  // Navigation Click Handlers
+    if (Math.abs(diffY) > 35) {
+      wheelCooldown = true;
+      setTimeout(function() { wheelCooldown = false; }, 650);
+      if (diffY > 0) {
+        goToStep(currentStep + 1);
+      } else {
+        goToStep(currentStep - 1);
+      }
+    }
+  }, { passive: true });
+
+  // Keyboard Arrow / Page Navigation
+  window.addEventListener('keydown', function(e) {
+    if (isIntroActive || wheelCooldown) return;
+    if (e.key === 'ArrowDown' || e.key === 'PageDown' || e.key === ' ') {
+      e.preventDefault();
+      wheelCooldown = true;
+      setTimeout(function() { wheelCooldown = false; }, 650);
+      goToStep(currentStep + 1);
+    } else if (e.key === 'ArrowUp' || e.key === 'PageUp') {
+      e.preventDefault();
+      wheelCooldown = true;
+      setTimeout(function() { wheelCooldown = false; }, 650);
+      goToStep(currentStep - 1);
+    }
+  });
+
+  // Navigation Click Handlers (Buttons, HUD dots)
   document.querySelectorAll('[data-target]').forEach(function(btn) {
     btn.addEventListener('click', function(e) {
       e.preventDefault();
       var target = parseInt(btn.getAttribute('data-target'), 10);
-      scrollToStep(target);
+      goToStep(target);
     });
-  });
-}
-
-function onScroll() {
-  if (isIntroActive) {
-    if (introTimeline) introTimeline.kill();
-    isIntroActive = false;
-    window.__isIntroActive = false;
-  }
-
-  var maxScroll = document.documentElement.scrollHeight - window.innerHeight;
-  if (maxScroll <= 0) return;
-
-  var progress = Math.min(Math.max(window.scrollY / maxScroll, 0), 1);
-
-  // Map progress (0..1) to 5 steps (0, 1, 2, 3, 4)
-  var rawStep = progress * 4;
-  var stepIndex = Math.round(rawStep);
-  targetStep = Math.min(Math.max(stepIndex, 0), 4);
-
-  if (targetStep !== currentStep) {
-    updateUIStep(targetStep);
-  }
-}
-
-function scrollToStep(step) {
-  var maxScroll = document.documentElement.scrollHeight - window.innerHeight;
-  var targetY = (step / 4) * maxScroll;
-  window.scrollTo({
-    top: targetY,
-    behavior: 'smooth'
   });
 }
 
@@ -618,14 +666,10 @@ function animate() {
   mouse.y += (mouse.targetY - mouse.y) * 0.055;
 
   if (!isIntroActive && carGroup) {
-    // Calculate fractional scroll progress for smooth interpolation
-    var maxScroll = document.documentElement.scrollHeight - window.innerHeight;
-    var progress = maxScroll > 0 ? Math.min(Math.max(window.scrollY / maxScroll, 0), 1) : 0;
-
-    var stepProgress = progress * 4;
-    var baseStep = Math.floor(stepProgress);
+    var raw = stepProgress.value;
+    var baseStep = Math.floor(raw);
     var nextStep = Math.min(baseStep + 1, 4);
-    var stepFrac = stepProgress - baseStep;
+    var stepFrac = raw - baseStep;
 
     var poseA = getStepPose(baseStep);
     var poseB = getStepPose(nextStep);
