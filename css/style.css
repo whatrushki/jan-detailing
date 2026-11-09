@@ -1,0 +1,178 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html, body {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background-color: #000000;
+  color: #ffffff;
+  font-family: 'Montserrat', -apple-system, BlinkMacSystemFont, sans-serif;
+  user-select: none;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* 3D Canvas */
+#webgl {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  z-index: 1;
+  display: block;
+  outline: none;
+}
+
+/* Black Curtain (no blocking) */
+.curtain {
+  display: none;
+}
+
+/* Minimalist Brand Overlay with generous padding */
+.brand-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  z-index: 10;
+  pointer-events: none;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding: 0 10vw 0 0;
+}
+
+.brand-content {
+  max-width: 440px;
+  text-align: left;
+  pointer-events: auto;
+}
+
+.brand-logo-wrap {
+  margin-bottom: 16px;
+  opacity: 0;
+}
+
+.brand-logo-svg {
+  width: 280px;
+  height: auto;
+  display: block;
+  filter: drop-shadow(0 4px 20px rgba(0, 0, 0, 0.8));
+}
+
+.brand-sub {
+  font-size: 11px;
+  font-weight: 400;
+  letter-spacing: 4px;
+  color: rgba(255, 255, 255, 0.7);
+  text-transform: uppercase;
+  margin-bottom: 28px;
+  opacity: 0;
+}
+
+.brand-actions {
+  opacity: 0;
+}
+
+.minimal-btn {
+  display: inline-block;
+  padding: 14px 34px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  text-decoration: none;
+  color: #000000;
+  background: #ffffff;
+  border: 1px solid #ffffff;
+  transition: all 0.35s ease;
+  cursor: pointer;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.6);
+}
+
+.minimal-btn:hover {
+  background: transparent;
+  color: #ffffff;
+  box-shadow: 0 0 25px rgba(255, 255, 255, 0.4);
+}
+
+/* Flicker / Strobe Animation for text appearance */
+.flicker-active {
+  animation: textFlicker 0.85s steps(1, end) forwards;
+}
+
+@keyframes textFlicker {
+  0%   { opacity: 0; }
+  10%  { opacity: 1; }
+  18%  { opacity: 0; }
+  25%  { opacity: 1; }
+  35%  { opacity: 0.1; }
+  45%  { opacity: 0.8; }
+  52%  { opacity: 0; }
+  60%  { opacity: 1; }
+  70%  { opacity: 0.2; }
+  80%  { opacity: 1; }
+  90%  { opacity: 0.85; }
+  100% { opacity: 1; }
+}
+
+/* Subtle Film Grain */
+body::after {
+  content: '';
+  position: fixed;
+  top: 0; left: 0;
+  width: 100vw; height: 100vh;
+  z-index: 2;
+  pointer-events: none;
+  background: radial-gradient(circle at center, transparent 60%, rgba(0, 0, 0, 0.4) 100%);
+}
+
+@media (max-width: 900px) {
+  .brand-overlay {
+    justify-content: center !important;
+    align-items: flex-end !important;
+    padding: 0 20px 48px 20px !important;
+    text-align: center !important;
+  }
+  .brand-content {
+    width: 100% !important;
+    max-width: 360px !important;
+    margin: 0 auto !important;
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: center !important;
+    text-align: center !important;
+  }
+  .brand-logo-wrap {
+    display: flex !important;
+    justify-content: center !important;
+    width: 100% !important;
+    margin-bottom: 14px !important;
+  }
+  .brand-logo-svg {
+    margin: 0 auto !important;
+    width: 220px !important;
+    display: block !important;
+  }
+  .brand-sub {
+    text-align: center !important;
+    width: 100% !important;
+    font-size: 10px !important;
+    letter-spacing: 3px !important;
+    margin-bottom: 22px !important;
+  }
+  .brand-actions {
+    display: flex !important;
+    justify-content: center !important;
+    width: 100% !important;
+  }
+  .minimal-btn {
+    padding: 12px 30px !important;
+    font-size: 10px !important;
+  }
+}

@@ -1,0 +1,15 @@
+# Unused raw heavy 3D assets & unused texture variations
+assets/models/earth.glb
+assets/textures/8k_*
+assets/textures/clouds_4k.png
+assets/textures/earth_4k.jpg
+assets/textures/earth.jpg
+assets/textures/earth_clouds.jpg
+assets/textures/earth_orbital_real.jpg
+
+# Temporary & local scripts
+*.bat
+*.png
+node_modules/
+.DS_Store
+Thumbs.db

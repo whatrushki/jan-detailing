@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>JAN DETAILING</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700;900&family=Montserrat:wght@200;300;400;500;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://unpkg.com/three@0.162.0/build/three.module.js",
+        "three/addons/": "https://unpkg.com/three@0.162.0/examples/jsm/"
+      }
+    }
+  </script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+</head>
+<body>
+
+  <!-- WebGL Canvas for Realistic Earth & Car -->
+  <canvas id="webgl"></canvas>
+
+  <!-- Clean Minimal Preloader (Seamless Black Fade) -->
+  <div id="curtain" class="curtain"></div>
+
+  <!-- Minimalist Brand Overlay with Original Jan Detailing Vector Logo -->
+  <div class="brand-overlay" id="brandOverlay">
+    <div class="brand-content">
+      <div class="brand-logo-wrap flicker-item">
+        <img src="assets/Vector.svg" alt="Jan Detailing" class="brand-logo-svg">
+      </div>
+      <p class="brand-sub flicker-item">AESTHETIC & PAINT PRESERVATION</p>
+      
+      <div class="brand-actions flicker-item">
+        <a href="#contact" class="minimal-btn">ЗАПИСАТЬСЯ</a>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>
