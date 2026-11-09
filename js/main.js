@@ -370,7 +370,6 @@ function startIntroSequence() {
         currentCamPos.copy(rest.camPos);
         currentLookAt.copy(rest.lookAt);
         triggerFlickerIn(heroOverlay);
-        onScroll();
       }
     });
 
@@ -534,7 +533,11 @@ function updateUIStep(newStep) {
    STEP CONTROLLER & INTERACTION EVENTS
    ============================================================ */
 function goToStep(newStep) {
-  if (isIntroActive) return;
+  if (isIntroActive) {
+    if (introTimeline) introTimeline.kill();
+    isIntroActive = false;
+    window.__isIntroActive = false;
+  }
   if (newStep < 0 || newStep > 4) return;
   if (newStep === currentStep && !isStepAnimating) return;
 
@@ -567,12 +570,11 @@ function initScrollAndInteractions() {
 
   // Mouse Wheel & Trackpad Navigation
   window.addEventListener('wheel', function(e) {
-    if (isIntroActive) return;
     if (wheelCooldown) return;
     if (Math.abs(e.deltaY) < 14) return;
 
     wheelCooldown = true;
-    setTimeout(function() { wheelCooldown = false; }, 650);
+    setTimeout(function() { wheelCooldown = false; }, 550);
 
     if (e.deltaY > 0) {
       goToStep(currentStep + 1);
@@ -601,14 +603,14 @@ function initScrollAndInteractions() {
   }, { passive: true });
 
   window.addEventListener('touchend', function(e) {
-    if (isIntroActive || wheelCooldown) return;
+    if (wheelCooldown) return;
     if (!e.changedTouches || e.changedTouches.length === 0) return;
     var touchEndY = e.changedTouches[0].clientY;
     var diffY = touchStartY - touchEndY;
 
     if (Math.abs(diffY) > 35) {
       wheelCooldown = true;
-      setTimeout(function() { wheelCooldown = false; }, 650);
+      setTimeout(function() { wheelCooldown = false; }, 550);
       if (diffY > 0) {
         goToStep(currentStep + 1);
       } else {
@@ -619,16 +621,16 @@ function initScrollAndInteractions() {
 
   // Keyboard Arrow / Page Navigation
   window.addEventListener('keydown', function(e) {
-    if (isIntroActive || wheelCooldown) return;
+    if (wheelCooldown) return;
     if (e.key === 'ArrowDown' || e.key === 'PageDown' || e.key === ' ') {
       e.preventDefault();
       wheelCooldown = true;
-      setTimeout(function() { wheelCooldown = false; }, 650);
+      setTimeout(function() { wheelCooldown = false; }, 550);
       goToStep(currentStep + 1);
     } else if (e.key === 'ArrowUp' || e.key === 'PageUp') {
       e.preventDefault();
       wheelCooldown = true;
-      setTimeout(function() { wheelCooldown = false; }, 650);
+      setTimeout(function() { wheelCooldown = false; }, 550);
       goToStep(currentStep - 1);
     }
   });
