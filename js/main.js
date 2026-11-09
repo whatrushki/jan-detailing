@@ -289,20 +289,12 @@ function loadFerrariF40() {
   const loader = new GLTFLoader();
 
   const dracoLoader = new DRACOLoader();
-  dracoLoader.setDecoderPath('https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/libs/draco/');
+  dracoLoader.setDecoderPath('assets/draco/');
   loader.setDRACOLoader(dracoLoader);
-
-  // Fallback safety: ensure branding & text reveal even on ultra-slow mobile networks
-  const safetyTimeout = setTimeout(() => {
-    if (isIntroActive) {
-      triggerTextFlicker();
-    }
-  }, 2500);
 
   loader.load(
     'assets/models/ferrari_f40.glb',
     (gltf) => {
-      clearTimeout(safetyTimeout);
       carModel = gltf.scene;
 
       // Center model pivot
@@ -430,8 +422,75 @@ function triggerTextFlicker() {
 }
 
 /* ============================================================
-   SMOOTH, NATURAL MOUSE & TOUCH REACTION (PURE & RELIABLE)
+   SMOOTH, NATURAL MOUSE, TOUCH & ACCELEROMETER REACTION
    ============================================================ */
+let hasGyroData = false;
+let initialBeta = null;
+
+function handleOrientation(e) {
+  const gamma = e.gamma;
+  const beta = e.beta;
+  if (typeof gamma !== 'number' || typeof beta !== 'number' || isNaN(gamma) || isNaN(beta)) return;
+
+  hasGyroData = true;
+
+  if (initialBeta === null) {
+    initialBeta = beta;
+  }
+
+  // Smooth running auto-recalibration if holding position shifts
+  if (Math.abs(beta - initialBeta) > 40) {
+    initialBeta = beta;
+  }
+
+  // Tilt left-right: ±15 degrees -> -1 to 1
+  mouse.targetX = Math.max(-1, Math.min(1, gamma / 15));
+  // Tilt forward-backward: ±12 degrees -> -1 to 1
+  mouse.targetY = Math.max(-1, Math.min(1, (beta - initialBeta) / 12));
+}
+
+function handleMotion(e) {
+  if (!e.accelerationIncludingGravity) return;
+  const acc = e.accelerationIncludingGravity;
+  if (typeof acc.x !== 'number' || typeof acc.y !== 'number' || isNaN(acc.x) || isNaN(acc.y)) return;
+
+  // If orientation angles didn't trigger, accelerometer takes over immediately:
+  if (!hasGyroData) {
+    mouse.targetX = Math.max(-1, Math.min(1, -acc.x / 4.0));
+    mouse.targetY = Math.max(-1, Math.min(1, (acc.y - 7.5) / 4.0));
+  }
+}
+
+function initSensors() {
+  // Attach all mobile motion listeners (works out of the box on Android)
+  window.addEventListener('deviceorientation', handleOrientation, true);
+  window.addEventListener('deviceorientationabsolute', handleOrientation, true);
+  window.addEventListener('devicemotion', handleMotion, true);
+
+  // iOS Safari requires explicit request on first touch
+  if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
+    const onFirstTouch = () => {
+      DeviceOrientationEvent.requestPermission()
+        .then((state) => {
+          if (state === 'granted') {
+            window.addEventListener('deviceorientation', handleOrientation, true);
+            window.addEventListener('deviceorientationabsolute', handleOrientation, true);
+            window.addEventListener('devicemotion', handleMotion, true);
+          }
+        })
+        .catch(() => {});
+      window.removeEventListener('touchstart', onFirstTouch);
+      window.removeEventListener('pointerdown', onFirstTouch);
+    };
+    window.addEventListener('touchstart', onFirstTouch, { once: true });
+    window.addEventListener('pointerdown', onFirstTouch, { once: true });
+  }
+
+  window.addEventListener('orientationchange', () => {
+    initialBeta = null;
+  });
+}
+
 function initEvents() {
   window.addEventListener('resize', onWindowResize);
 
@@ -454,6 +513,8 @@ function initEvents() {
 
   window.addEventListener('touchmove', onTouch, { passive: true });
   window.addEventListener('touchstart', onTouch, { passive: true });
+
+  initSensors();
 }
 
 function onWindowResize() {
@@ -481,9 +542,10 @@ function animate() {
 
   const elapsedTime = clock.getElapsedTime();
 
-  // Smooth mouse/touch easing
-  mouse.x += (mouse.targetX - mouse.x) * 0.055;
-  mouse.y += (mouse.targetY - mouse.y) * 0.055;
+  // Smooth mouse/touch/gyro easing (responsive on mobile sensors)
+  const easeSpeed = hasGyroData ? 0.12 : 0.055;
+  mouse.x += (mouse.targetX - mouse.x) * easeSpeed;
+  mouse.y += (mouse.targetY - mouse.y) * easeSpeed;
 
   const blend = introBlend.value;
 
