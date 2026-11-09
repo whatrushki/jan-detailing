@@ -422,15 +422,68 @@ function triggerTextFlicker() {
 }
 
 /* ============================================================
-   SMOOTH, NATURAL MOUSE REACTION (NO JERKY JUMPS)
+   SMOOTH, NATURAL MOUSE & GYROSCOPE (ACCELEROMETER) REACTION
    ============================================================ */
+let hasGyroData = false;
+let initialBeta = null;
+
+function handleOrientation(e) {
+  if (e.gamma === null || e.beta === null) return;
+  hasGyroData = true;
+
+  // Calibrate initial tilt to user's natural holding position
+  if (initialBeta === null) {
+    initialBeta = e.beta;
+  }
+
+  // Left-right tilt (gamma: ±25 deg mapped to -1.0 .. 1.0)
+  const clampedGamma = Math.max(-25, Math.min(25, e.gamma));
+  mouse.targetX = clampedGamma / 25;
+
+  // Forward-backward tilt (beta deviation from holding angle: ±20 deg mapped to -1.0 .. 1.0)
+  const deltaBeta = e.beta - initialBeta;
+  const clampedBeta = Math.max(-20, Math.min(20, deltaBeta));
+  mouse.targetY = clampedBeta / 20;
+}
+
+function initGyroscope() {
+  // iOS 13+ requires user permission requested on first user gesture
+  if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
+    const requestiOSPermission = () => {
+      DeviceOrientationEvent.requestPermission()
+        .then((state) => {
+          if (state === 'granted') {
+            window.addEventListener('deviceorientation', handleOrientation, true);
+          }
+        })
+        .catch(console.error);
+      window.removeEventListener('touchend', requestiOSPermission);
+      window.removeEventListener('click', requestiOSPermission);
+    };
+
+    window.addEventListener('touchend', requestiOSPermission, { once: true });
+    window.addEventListener('click', requestiOSPermission, { once: true });
+  } else if ('DeviceOrientationEvent' in window) {
+    // Android / Chrome / Safari without permission prompt
+    window.addEventListener('deviceorientation', handleOrientation, true);
+  }
+
+  window.addEventListener('orientationchange', () => {
+    initialBeta = null;
+  });
+}
+
 function initEvents() {
   window.addEventListener('resize', onWindowResize);
 
   window.addEventListener('pointermove', (e) => {
-    mouse.targetX = (e.clientX - windowHalf.x) / windowHalf.x;
-    mouse.targetY = (e.clientY - windowHalf.y) / windowHalf.y;
+    if (e.pointerType === 'mouse' || !hasGyroData) {
+      mouse.targetX = (e.clientX - windowHalf.x) / windowHalf.x;
+      mouse.targetY = (e.clientY - windowHalf.y) / windowHalf.y;
+    }
   });
+
+  initGyroscope();
 }
 
 function onWindowResize() {
