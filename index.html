@@ -3,11 +3,11 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>JAN DETAILING — AESTHETIC & PAINT PRESERVATION</title>
+  <title>JAN DETAILING</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Montserrat:wght@300;400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/style.css?v=26">
+  <link rel="stylesheet" href="css/style.css?v=27">
   <script src="js/libs/gsap.min.js"></script>
 </head>
 <body>
@@ -24,135 +24,82 @@
     <div class="hud-step" data-target="4"><span>04</span><label>STUDIO</label></div>
   </div>
 
-  <!-- STEP 0: HERO OVERLAY -->
-  <div class="screen-overlay hero-overlay active" id="heroOverlay">
-    <div class="hero-content hero-hidden" id="heroContent">
+  <!-- STEP 0: ORIGINAL MINIMALIST BRAND OVERLAY (ON THE RIGHT, AS IN B696B71) -->
+  <div class="brand-overlay active" id="brandOverlay">
+    <div class="brand-content hero-hidden" id="heroContent">
       <div class="brand-logo-wrap flicker-item">
         <img src="assets/Vector.svg" alt="Jan Detailing" class="brand-logo-svg">
       </div>
       <p class="brand-sub flicker-item">AESTHETIC &amp; PAINT PRESERVATION</p>
+      
       <div class="brand-actions flicker-item">
-        <button class="minimal-btn scroll-to-btn" data-target="1">ИССЛЕДОВАТЬ УСЛУГИ</button>
-      </div>
-      <div class="scroll-hint flicker-item">
-        <span class="scroll-mouse"></span>
-        <span class="scroll-text">СКРОЛЛ ДЛЯ ПОГРУЖЕНИЯ</span>
+        <button class="minimal-btn" data-target="1">ЗАПИСАТЬСЯ</button>
       </div>
     </div>
   </div>
 
-  <!-- STEPS 1 - 3: SERVICES OVERLAY (Fixed on Right) -->
-  <div class="screen-overlay services-overlay" id="servicesOverlay">
-    <div class="services-container">
+  <!-- STEPS 1 - 3: SERVICES OVERLAY (ZERO BOXES, PURE FLOATING MINIMALIST TYPOGRAPHY) -->
+  <div class="services-overlay" id="servicesOverlay">
+    <div class="services-minimal">
       
       <!-- SERVICE 01: МОЙКА -->
-      <div class="service-card" data-service="1">
-        <div class="service-tag flicker-item">[ 01 // ДЕТЕЙЛИНГ-КОМПЛЕКС ]</div>
-        <h2 class="service-title flicker-item">ТРЕХФАЗНАЯ<br>ДЕТЕЙЛИНГ-МОЙКА</h2>
-        <p class="service-sub flicker-item">БЕСКОНТАКТНОЕ ОЧИЩЕНИЕ И КОНСЕРВАЦИЯ ЛКП</p>
-        <ul class="service-specs">
-          <li class="flicker-item"><span class="spec-num">[01]</span> Первичное нанесение pH-нейтральной эмульсии Koch Chemie без контакта</li>
-          <li class="flicker-item"><span class="spec-num">[02]</span> Деликатная ручная очистка пористыми губками и натуральными кистями</li>
-          <li class="flicker-item"><span class="spec-num">[03]</span> Глубокая очистка дисков и колесных арок от тормозной пыли и битума</li>
-          <li class="flicker-item"><span class="spec-num">[04]</span> Турбосушка фильтрованным теплым воздухом и кварцевый гидрофоб</li>
-        </ul>
-        <div class="service-foot flicker-item">
-          <div class="service-price">
-            <span class="price-label">СТОИМОСТЬ</span>
-            <span class="price-val">ОТ 6 500 ₽</span>
-          </div>
-          <button class="minimal-btn service-btn" data-target="4">ЗАБРОНИРОВАТЬ</button>
+      <div class="service-slide" data-service="1">
+        <div class="service-num flicker-item">// 01 ДЕТЕЙЛИНГ-КОМПЛЕКС</div>
+        <h2 class="service-title flicker-item">ТРЕХФАЗНАЯ МОЙКА</h2>
+        <p class="service-desc flicker-item">Деликатное бесконтактное очищение кузова pH-нейтральной пеной, турбосушка фильтрованным теплым воздухом и кварцевая консервация.</p>
+        <div class="service-meta flicker-item">
+          <span class="service-price">ОТ 6 500 ₽</span>
+          <button class="minimal-link-btn" data-target="4">ЗАБРОНИРОВАТЬ &rarr;</button>
         </div>
       </div>
 
       <!-- SERVICE 02: ПОЛИРОВКА -->
-      <div class="service-card" data-service="2">
-        <div class="service-tag flicker-item">[ 02 // КОРРЕКЦИЯ ЛКП ]</div>
-        <h2 class="service-title flicker-item">ВОССТАНОВИТЕЛЬНАЯ<br>ПОЛИРОВКА &amp; 9H</h2>
-        <p class="service-sub flicker-item">ЗЕРКАЛЬНЫЙ БЛЕСК И УДАЛЕНИЕ 98% ЦАРАПИН</p>
-        <ul class="service-specs">
-          <li class="flicker-item"><span class="spec-num">[01]</span> Точечная оптическая инспекция лака под колористическими LED-лампами</li>
-          <li class="flicker-item"><span class="spec-num">[02]</span> Безабразивная многоэтапная коррекция лака без истончения слоя</li>
-          <li class="flicker-item"><span class="spec-num">[03]</span> Устранение паутинок, голограмм и следов агрессивных моек</li>
-          <li class="flicker-item"><span class="spec-num">[04]</span> Консервация нанокерамикой 9H с оптическим эффектом «мокрого лака»</li>
-        </ul>
-        <div class="service-foot flicker-item">
-          <div class="service-price">
-            <span class="price-label">СТОИМОСТЬ</span>
-            <span class="price-val">ОТ 45 000 ₽</span>
-          </div>
-          <button class="minimal-btn service-btn" data-target="4">ЗАБРОНИРОВАТЬ</button>
+      <div class="service-slide" data-service="2">
+        <div class="service-num flicker-item">// 02 КОРРЕКЦИЯ ЛКП</div>
+        <h2 class="service-title flicker-item">ВОССТАНОВИТЕЛЬНАЯ ПОЛИРОВКА</h2>
+        <p class="service-desc flicker-item">Многоэтапное устранение 98% микроцарапин и голограмм без истончения лака. Зеркальный блеск и защита нанокерамикой 9H.</p>
+        <div class="service-meta flicker-item">
+          <span class="service-price">ОТ 45 000 ₽</span>
+          <button class="minimal-link-btn" data-target="4">ЗАБРОНИРОВАТЬ &rarr;</button>
         </div>
       </div>
 
       <!-- SERVICE 03: ХИМЧИСТКА -->
-      <div class="service-card" data-service="3">
-        <div class="service-tag flicker-item">[ 03 // ИНТЕРЬЕР И САЛОН ]</div>
-        <h2 class="service-title flicker-item">ДЕТЕЙЛИНГ<br>ХИМЧИСТКА САЛОНА</h2>
-        <p class="service-sub flicker-item">ДЕЛИКАТНЫЙ УХОД ЗА КОЖЕЙ, КАРБОНОМ И ALCANTARA</p>
-        <ul class="service-specs">
-          <li class="flicker-item"><span class="spec-num">[01]</span> Паровая биоочистка перфорированной кожи и швов без переувлажнения</li>
-          <li class="flicker-item"><span class="spec-num">[02]</span> Глубокая антистатическая экстракция текстиля и напольного ковролина</li>
-          <li class="flicker-item"><span class="spec-num">[03]</span> Питание кожи оригинальными кремами с матовым финишем и UV-защитой</li>
-          <li class="flicker-item"><span class="spec-num">[04]</span> Антибактериальная стерилизация и озонирование климатической системы</li>
-        </ul>
-        <div class="service-foot flicker-item">
-          <div class="service-price">
-            <span class="price-label">СТОИМОСТЬ</span>
-            <span class="price-val">ОТ 28 000 ₽</span>
-          </div>
-          <button class="minimal-btn service-btn" data-target="4">ЗАБРОНИРОВАТЬ</button>
+      <div class="service-slide" data-service="3">
+        <div class="service-num flicker-item">// 03 ИНТЕРЬЕР И САЛОН</div>
+        <h2 class="service-title flicker-item">ХИМЧИСТКА САЛОНА</h2>
+        <p class="service-desc flicker-item">Хирургическая чистота кожи, карбона и Alcantara. Антибактериальное озонирование климатической системы и консервация кремами.</p>
+        <div class="service-meta flicker-item">
+          <span class="service-price">ОТ 28 000 ₽</span>
+          <button class="minimal-link-btn" data-target="4">ЗАБРОНИРОВАТЬ &rarr;</button>
         </div>
       </div>
 
     </div>
   </div>
 
-  <!-- STEP 4: CONTACT & STUDIO OVERLAY (Top HUD + Bottom Dock - Car 100% Unobstructed) -->
-  <div class="screen-overlay contact-overlay" id="contactOverlay">
-    
-    <!-- Top HUD Header -->
-    <div class="studio-top-hud">
-      <div class="studio-badge flicker-item">[ 04 // STUDIO LOCATION ]</div>
-      <h2 class="studio-headline flicker-item">JAN DETAILING STUDIO</h2>
-      <p class="studio-subline flicker-item">МОСКВА &bull; ЗАКРЫТАЯ ОХРАНЯЕМАЯ ТЕРРИТОРИЯ &bull; ПРИЁМ ПО ЗАПИСИ</p>
-    </div>
-
-    <!-- Bottom HUD Dock -->
-    <div class="studio-bottom-dock">
-      <div class="dock-meta flicker-item">
-        <div class="meta-item">
-          <span class="meta-label">АДРЕС СТУДИИ</span>
-          <span class="meta-val">Новорижское / Рублёво-Успенское ш.</span>
-        </div>
-        <div class="meta-item">
-          <span class="meta-label">ГРАФИК</span>
-          <span class="meta-val">Ежедневно: 10:00 — 22:00</span>
-        </div>
-      </div>
-
-      <div class="dock-maps flicker-item">
-        <a href="https://yandex.ru/maps" target="_blank" rel="noopener" class="dock-pill">
-          <span class="pill-dot"></span>ЯНДЕКС КАРТЫ
-        </a>
-        <a href="https://2gis.ru" target="_blank" rel="noopener" class="dock-pill">
-          <span class="pill-dot"></span>2ГИС
-        </a>
-        <a href="https://maps.google.com" target="_blank" rel="noopener" class="dock-pill">
-          <span class="pill-dot"></span>GOOGLE MAPS
-        </a>
-      </div>
-
-      <div class="dock-actions flicker-item">
-        <a href="https://t.me" target="_blank" rel="noopener" class="minimal-btn btn-primary">TELEGRAM</a>
-        <a href="https://wa.me" target="_blank" rel="noopener" class="minimal-btn btn-outline">WHATSAPP</a>
-        <a href="tel:+79990000000" class="minimal-btn btn-outline">+7 (999) 000-00-00</a>
+  <!-- STEP 4: STUDIO LOCATION & CONTACTS (ZERO BOXES, PURE MINIMALIST FLOATING HUD) -->
+  <div class="contact-overlay" id="contactOverlay">
+    <div class="studio-minimal-wrap">
+      <div class="studio-tag flicker-item">// 04 СТУДИЯ &amp; ЛОКАЦИЯ</div>
+      <h2 class="studio-name flicker-item">JAN DETAILING STUDIO</h2>
+      <p class="studio-location flicker-item">МОСКВА &bull; НОВОРИЖСКОЕ Ш. &bull; ПРИЁМ ПО ЗАПИСИ: 10:00 — 22:00</p>
+      
+      <div class="studio-links flicker-item">
+        <a href="https://yandex.ru/maps" target="_blank" rel="noopener" class="minimal-text-link">ЯНДЕКС КАРТЫ</a>
+        <span class="sep">&bull;</span>
+        <a href="https://2gis.ru" target="_blank" rel="noopener" class="minimal-text-link">2ГИС</a>
+        <span class="sep">&bull;</span>
+        <a href="https://t.me" target="_blank" rel="noopener" class="minimal-text-link">TELEGRAM</a>
+        <span class="sep">&bull;</span>
+        <a href="https://wa.me" target="_blank" rel="noopener" class="minimal-text-link">WHATSAPP</a>
+        <span class="sep">&bull;</span>
+        <a href="tel:+79990000000" class="minimal-text-link">+7 (999) 000-00-00</a>
       </div>
     </div>
-
   </div>
 
   <!-- Modern Local ES Module -->
-  <script type="module" src="js/main.js?v=26"></script>
+  <script type="module" src="js/main.js?v=27"></script>
 </body>
 </html>
