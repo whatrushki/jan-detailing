@@ -422,13 +422,16 @@ function triggerTextFlicker() {
 }
 
 /* ============================================================
-   SMOOTH, NATURAL MOUSE & GYROSCOPE (ACCELEROMETER) REACTION
+   SMOOTH, NATURAL MOUSE, TOUCH & ACCELEROMETER/GYROSCOPE REACTION
    ============================================================ */
 let hasGyroData = false;
 let initialBeta = null;
+const gyroBtn = document.getElementById('gyroBtn');
 
 function handleOrientation(e) {
-  if (e.gamma === null || e.beta === null) return;
+  if (typeof e.gamma !== 'number' || typeof e.beta !== 'number') return;
+  if (isNaN(e.gamma) || isNaN(e.beta)) return;
+
   hasGyroData = true;
 
   // Calibrate initial tilt to user's natural holding position
@@ -436,36 +439,77 @@ function handleOrientation(e) {
     initialBeta = e.beta;
   }
 
-  // Left-right tilt (gamma: ±25 deg mapped to -1.0 .. 1.0)
-  const clampedGamma = Math.max(-25, Math.min(25, e.gamma));
-  mouse.targetX = clampedGamma / 25;
+  // Smooth running auto-recalibration if holding position shifts drastically
+  if (Math.abs(e.beta - initialBeta) > 40) {
+    initialBeta = e.beta;
+  }
 
-  // Forward-backward tilt (beta deviation from holding angle: ±20 deg mapped to -1.0 .. 1.0)
+  // Left-right tilt (gamma: ±16 deg mapped to -1.0 .. 1.0 for lively response)
+  const clampedGamma = Math.max(-16, Math.min(16, e.gamma));
+  mouse.targetX = clampedGamma / 16;
+
+  // Forward-backward tilt (beta deviation from holding angle: ±14 deg mapped to -1.0 .. 1.0)
   const deltaBeta = e.beta - initialBeta;
-  const clampedBeta = Math.max(-20, Math.min(20, deltaBeta));
-  mouse.targetY = clampedBeta / 20;
+  const clampedBeta = Math.max(-14, Math.min(14, deltaBeta));
+  mouse.targetY = clampedBeta / 14;
+}
+
+function handleMotion(e) {
+  // If orientation is blocked or unavailable, use accelerometer directly
+  if (!e.accelerationIncludingGravity) return;
+  const acc = e.accelerationIncludingGravity;
+  if (typeof acc.x !== 'number' || typeof acc.y !== 'number') return;
+  if (isNaN(acc.x) || isNaN(acc.y)) return;
+
+  if (!hasGyroData) {
+    // Upright phone: acc.x ≈ 0, acc.y ≈ 9.8. Tilting right gives positive or negative acc.x
+    const normX = Math.max(-1, Math.min(1, -acc.x / 4.5));
+    const normY = Math.max(-1, Math.min(1, (acc.y - 7.5) / 4.5));
+    mouse.targetX = normX;
+    mouse.targetY = normY;
+  }
+}
+
+function requestSensorPermission() {
+  if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
+    DeviceOrientationEvent.requestPermission()
+      .then((state) => {
+        if (state === 'granted') {
+          window.addEventListener('deviceorientation', handleOrientation, true);
+          window.addEventListener('devicemotion', handleMotion, true);
+          if (gyroBtn) gyroBtn.style.display = 'none';
+        }
+      })
+      .catch((err) => {
+        console.warn('Gyro permission rejected:', err);
+      });
+  }
 }
 
 function initGyroscope() {
-  // iOS 13+ requires user permission requested on first user gesture
+  // iOS 13+ requires user permission triggered on a user gesture
   if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
-    const requestiOSPermission = () => {
-      DeviceOrientationEvent.requestPermission()
-        .then((state) => {
-          if (state === 'granted') {
-            window.addEventListener('deviceorientation', handleOrientation, true);
-          }
-        })
-        .catch(console.error);
-      window.removeEventListener('touchend', requestiOSPermission);
-      window.removeEventListener('click', requestiOSPermission);
-    };
+    if (gyroBtn) {
+      gyroBtn.style.display = 'block';
+      gyroBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        requestSensorPermission();
+      });
+    }
 
-    window.addEventListener('touchend', requestiOSPermission, { once: true });
-    window.addEventListener('click', requestiOSPermission, { once: true });
-  } else if ('DeviceOrientationEvent' in window) {
-    // Android / Chrome / Safari without permission prompt
+    // Also trigger on first screen tap anywhere
+    const onFirstUserTap = () => {
+      requestSensorPermission();
+      window.removeEventListener('touchend', onFirstUserTap);
+      window.removeEventListener('click', onFirstUserTap);
+    };
+    window.addEventListener('touchend', onFirstUserTap, { once: true });
+    window.addEventListener('click', onFirstUserTap, { once: true });
+  } else {
+    // Android Chrome & standard browsers: activate sensors immediately!
     window.addEventListener('deviceorientation', handleOrientation, true);
+    window.addEventListener('devicemotion', handleMotion, true);
+    if (gyroBtn) gyroBtn.style.display = 'none';
   }
 
   window.addEventListener('orientationchange', () => {
@@ -476,12 +520,22 @@ function initGyroscope() {
 function initEvents() {
   window.addEventListener('resize', onWindowResize);
 
+  // Mouse move on desktop
   window.addEventListener('pointermove', (e) => {
-    if (e.pointerType === 'mouse' || !hasGyroData) {
+    if (e.pointerType === 'mouse') {
       mouse.targetX = (e.clientX - windowHalf.x) / windowHalf.x;
       mouse.targetY = (e.clientY - windowHalf.y) / windowHalf.y;
     }
   });
+
+  // Touch drag on mobile (complimentary to gyro)
+  window.addEventListener('touchmove', (e) => {
+    if (e.touches && e.touches.length > 0) {
+      const touch = e.touches[0];
+      mouse.targetX = (touch.clientX - windowHalf.x) / windowHalf.x;
+      mouse.targetY = (touch.clientY - windowHalf.y) / windowHalf.y;
+    }
+  }, { passive: true });
 
   initGyroscope();
 }
@@ -511,9 +565,10 @@ function animate() {
 
   const elapsedTime = clock.getElapsedTime();
 
-  // Smooth mouse easing
-  mouse.x += (mouse.targetX - mouse.x) * 0.055;
-  mouse.y += (mouse.targetY - mouse.y) * 0.055;
+  // Smooth mouse/gyro easing (faster response for live gyro/accel!)
+  const easeSpeed = hasGyroData ? 0.14 : 0.055;
+  mouse.x += (mouse.targetX - mouse.x) * easeSpeed;
+  mouse.y += (mouse.targetY - mouse.y) * easeSpeed;
 
   const blend = introBlend.value;
 
@@ -522,14 +577,15 @@ function animate() {
     const targetCamX = mouse.x * 0.38 * blend;
     const targetCamY = -mouse.y * 0.24 * blend;
 
-    camera.position.x += (targetCamX - camera.position.x) * 0.045;
-    camera.position.y += (targetCamY - camera.position.y) * 0.045;
-    camera.position.z += (7.5 - camera.position.z) * 0.045;
+    const camEase = hasGyroData ? 0.10 : 0.045;
+    camera.position.x += (targetCamX - camera.position.x) * camEase;
+    camera.position.y += (targetCamY - camera.position.y) * camEase;
+    camera.position.z += (7.5 - camera.position.z) * camEase;
 
     const targetLookX = -0.35 + (mouse.x * 0.10) * blend;
     const targetLookY = 0.15 - (mouse.y * 0.08) * blend;
-    currentLookAt.x += (targetLookX - currentLookAt.x) * 0.045;
-    currentLookAt.y += (targetLookY - currentLookAt.y) * 0.045;
+    currentLookAt.x += (targetLookX - currentLookAt.x) * camEase;
+    currentLookAt.y += (targetLookY - currentLookAt.y) * camEase;
   }
   camera.lookAt(currentLookAt);
 
@@ -562,16 +618,17 @@ function animate() {
     const targetRotY = REST_ROT_Y + (mouse.x * 0.035) * blend;
     const targetRotZ = REST_ROT_Z - (mouse.x * 0.015) * blend;
 
-    carGroup.rotation.x += (targetRotX - carGroup.rotation.x) * 0.03;
-    carGroup.rotation.y += (targetRotY - carGroup.rotation.y) * 0.03;
-    carGroup.rotation.z += (targetRotZ - carGroup.rotation.z) * 0.03;
+    const carEase = hasGyroData ? 0.08 : 0.03;
+    carGroup.rotation.x += (targetRotX - carGroup.rotation.x) * carEase;
+    carGroup.rotation.y += (targetRotY - carGroup.rotation.y) * carEase;
+    carGroup.rotation.z += (targetRotZ - carGroup.rotation.z) * carEase;
 
     // Weightless zero-g floating drift
     const targetPosX = restPos.x + (mouse.x * 0.04) * blend;
     const targetPosY = restPos.y + (-mouse.y * 0.035 + Math.sin(elapsedTime * 0.75) * 0.025) * blend;
 
-    carGroup.position.x += (targetPosX - carGroup.position.x) * 0.03;
-    carGroup.position.y += (targetPosY - carGroup.position.y) * 0.03;
+    carGroup.position.x += (targetPosX - carGroup.position.x) * carEase;
+    carGroup.position.y += (targetPosY - carGroup.position.y) * carEase;
   }
 
   renderer.render(scene, camera);
