@@ -21,6 +21,7 @@ var introTimeline = null;
 var currentStep = 0;
 var targetStep = 0;
 var stepProgress = { value: 0 };
+window.__stepProgress = stepProgress;
 var isStepAnimating = false;
 var wheelCooldown = false;
 
@@ -89,6 +90,8 @@ function initThree() {
   carGroup.visible = false;
   scene.add(carGroup);
   window.__carGroup = carGroup;
+  window.camera = camera;
+  window.scene = scene;
 }
 
 /* ============================================================
@@ -559,50 +562,50 @@ function getStepPose(step) {
         washFade: 0.0
       };
 
-    case 1: // 01 WASH: Detailing bay with cascading water (Closer, wider stance, slightly lower)
+    case 1: // 01 WASH: Detailing bay with cascading water (Raised up, perfectly grounded)
       return {
-        carPos: new THREE.Vector3(isDesktop ? -1.45 : 0, isDesktop ? -0.12 : 0.65, isDesktop ? 3.1 : 2.4),
-        carRot: new THREE.Euler(0.02, 0.65, 0.0),
-        camPos: new THREE.Vector3(-0.1, 0.28, 6.4),
-        lookAt: new THREE.Vector3(-0.55, 0.15, 0),
+        carPos: new THREE.Vector3(isDesktop ? -1.35 : 0, isDesktop ? 0.14 : 0.65, isDesktop ? 3.1 : 2.4),
+        carRot: new THREE.Euler(0.0, 0.62, 0.0),
+        camPos: new THREE.Vector3(-0.1, 0.44, 6.2),
+        lookAt: new THREE.Vector3(-0.55, 0.26, 0),
         fov: 35,
         studioFade: 1.0,
         headlights: 0.0,
         washFade: 1.0
       };
 
-    case 2: // 02 POLISH: Flank reflection & scanning light (Separated cleanly from right text)
+    case 2: // 02 POLISH: Diagonal stance, nose turned away from camera, door opening & wheels visible
       return {
-        carPos: new THREE.Vector3(isDesktop ? -1.75 : 0, isDesktop ? -0.05 : 0.65, isDesktop ? 3.0 : 2.5),
-        carRot: new THREE.Euler(0.0, 1.45, 0.0),
-        camPos: new THREE.Vector3(-0.25, 0.32, 6.2),
-        lookAt: new THREE.Vector3(-0.85, 0.22, 0),
-        fov: 35,
+        carPos: new THREE.Vector3(isDesktop ? -1.35 : 0, isDesktop ? 0.06 : 0.65, isDesktop ? 3.1 : 2.5),
+        carRot: new THREE.Euler(0.0, -0.45, 0.0), // Diagonal flank view, nose away
+        camPos: new THREE.Vector3(-0.05, 0.32, 5.2),
+        lookAt: new THREE.Vector3(-0.75, 0.20, 0),
+        fov: 37,
         studioFade: 1.0,
         headlights: 0.0,
         washFade: 0.0
       };
 
-    case 3: // 03 INTERIOR: Looking into cockpit from upper windshield corner angle
+    case 3: // 03 INTERIOR: Looking into cabin across console & passenger seat
       return {
-        carPos: new THREE.Vector3(isDesktop ? -1.3 : 0, -0.08, isDesktop ? 2.2 : 1.8),
-        carRot: new THREE.Euler(0.0, 0.40, 0.0),
-        camPos: new THREE.Vector3(-1.45, 0.62, 3.4),
-        lookAt: new THREE.Vector3(-0.95, 0.35, 1.6),
-        fov: 46,
+        carPos: new THREE.Vector3(isDesktop ? -0.65 : 0, 0.08, isDesktop ? 2.2 : 1.8),
+        carRot: new THREE.Euler(0.0, 0.16, 0.0),
+        camPos: new THREE.Vector3(isDesktop ? -0.84 : -0.22, 0.14, isDesktop ? 2.32 : 1.80),
+        lookAt: new THREE.Vector3(isDesktop ? -0.32 : 0.15, -0.04, isDesktop ? 1.35 : 1.05),
+        fov: 68,
         studioFade: 1.0,
         headlights: 0.0,
         washFade: 0.0
       };
 
-    case 4: // 04 STUDIO & LOCATION: Front faces camera (rot.y = PI), lowered slightly, headlights on
+    case 4: // 04 STUDIO & LOCATION: Centered, elevated cleanly above footer text, headlights on
     default:
       return {
-        carPos: new THREE.Vector3(0, isDesktop ? -0.08 : 0.05, isDesktop ? 2.6 : 2.1),
-        carRot: new THREE.Euler(-0.08, Math.PI, 0.0), // Front bumper faces camera, nose slightly down
-        camPos: new THREE.Vector3(0, 0.42, 6.2),
-        lookAt: new THREE.Vector3(0, 0.08, 0),
-        fov: 35,
+        carPos: new THREE.Vector3(0, isDesktop ? 0.45 : 0.50, isDesktop ? 2.0 : 1.7),
+        carRot: new THREE.Euler(0.04, 0.0, 0.0), // Slight aesthetic nose-down pitch
+        camPos: new THREE.Vector3(0, 0.48, 6.2),
+        lookAt: new THREE.Vector3(0, 0.16, 0), // Looking below car center raises car on screen
+        fov: 34,
         studioFade: 1.0,
         headlights: 1.0,
         washFade: 0.0
@@ -837,33 +840,33 @@ function animate() {
     var targetLights = THREE.MathUtils.lerp(poseA.headlights, poseB.headlights, stepFrac);
     var targetWash = THREE.MathUtils.lerp(poseA.washFade, poseB.washFade, stepFrac);
 
-    // Subtle parallax tilt
-    targetCamP.x += mouse.x * 0.16;
-    targetCamP.y += -mouse.y * 0.12;
-    targetLook.x += mouse.x * 0.04;
-    targetLook.y += -mouse.y * 0.03;
-
-    // Smooth LERP (Spring damping)
-    currentCarPos.lerp(targetCarP, 0.065);
-    currentCamPos.lerp(targetCamP, 0.065);
-    currentLookAt.lerp(targetLook, 0.065);
-    currentFov.value += (targetFovVal - currentFov.value) * 0.065;
+    // Direct exact synchronization with GSAP interpolation (zero phase lag)
+    currentCarPos.copy(targetCarP);
+    currentCarRot.set(targetRotX, targetRotY, targetRotZ);
+    currentCamPos.copy(targetCamP);
+    currentLookAt.copy(targetLook);
+    currentFov.value = targetFovVal;
+    currentStudioFade.value = targetFade;
 
     camera.fov = currentFov.value;
     camera.updateProjectionMatrix();
 
-    currentCarRot.x += (targetRotX - currentCarRot.x) * 0.065;
-    currentCarRot.y += (targetRotY - currentCarRot.y) * 0.065;
-    currentCarRot.z += (targetRotZ - currentCarRot.z) * 0.065;
-
-    currentStudioFade.value += (targetFade - currentStudioFade.value) * 0.06;
-
-    var sFade = currentStudioFade.value;
-
     carGroup.position.copy(currentCarPos);
     carGroup.rotation.copy(currentCarRot);
-    camera.position.copy(currentCamPos);
-    camera.lookAt(currentLookAt);
+
+    // Subtle pointer parallax applied directly to camera
+    camera.position.set(
+      currentCamPos.x + mouse.x * 0.16,
+      currentCamPos.y - mouse.y * 0.12,
+      currentCamPos.z
+    );
+    camera.lookAt(
+      currentLookAt.x + mouse.x * 0.04,
+      currentLookAt.y - mouse.y * 0.03,
+      currentLookAt.z
+    );
+
+    var sFade = currentStudioFade.value;
 
     // Dynamic Fog Management: Only active when entering studio
     if (sFade > 0.08) {
@@ -874,17 +877,32 @@ function animate() {
       scene.fog = null;
     }
 
-    // Studio Environment Fading & Ground Alignment Flush Under Tires
-    var groundY = currentCarPos.y + carModelTireOffset;
+    // Studio Environment & Ground Plane:
+    // Ground level sits flush under car tires:
+    var studioGroundY = currentCarPos.y - 0.56;
+
+    // Critical fix for Hero -> Step 1 transition:
+    // Floor & shadow do NOT appear while the car is flipping in space!
+    // They fade in smoothly only as the car levels out and touches down (raw >= 0.70).
+    var floorAlpha = 0;
+    if (raw >= 1.0) {
+      floorAlpha = sFade * 0.94;
+    } else if (raw >= 0.70) {
+      var t = (raw - 0.70) / 0.30;
+      floorAlpha = t * t * 0.94;
+    }
+
     if (floorMesh) {
-      floorMesh.position.y = groundY;
-      floorMesh.material.opacity = sFade * 0.94;
+      floorMesh.position.y = studioGroundY;
+      floorMesh.material.opacity = floorAlpha;
+      floorMesh.visible = (floorAlpha > 0.001);
     }
     if (contactShadow) {
       contactShadow.position.x = currentCarPos.x;
       contactShadow.position.z = currentCarPos.z;
-      contactShadow.position.y = groundY + 0.005;
-      contactShadow.material.opacity = sFade * 0.88;
+      contactShadow.position.y = studioGroundY + 0.005;
+      contactShadow.material.opacity = floorAlpha * 0.88;
+      contactShadow.visible = (floorAlpha > 0.001);
     }
     if (studioCeilingLight) {
       studioCeilingLight.intensity = sFade * 3.4;

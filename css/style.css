@@ -103,14 +103,13 @@ html, body {
   pointer-events: none;
   opacity: 0;
   visibility: hidden;
-  transition: opacity 0.5s cubic-bezier(0.16, 1, 0.3, 1), visibility 0.5s ease;
 }
 
 .brand-overlay.active,
 .services-overlay.active,
 .contact-overlay.active {
-  opacity: 1;
-  visibility: visible;
+  opacity: 1 !important;
+  visibility: visible !important;
 }
 
 /* -------------------------------------------------------------
@@ -200,13 +199,12 @@ html, body {
   border: none;
   padding: 0;
   box-shadow: none;
-  transition: opacity 0.35s ease, visibility 0.35s ease;
 }
 
 .service-slide.current {
-  opacity: 1;
-  visibility: visible;
-  pointer-events: auto;
+  opacity: 1 !important;
+  visibility: visible !important;
+  pointer-events: auto !important;
 }
 
 .service-num {
