@@ -12,8 +12,8 @@ var carGroup, carModel;
 var orbitalEarthGroup, earthMesh;
 var starsDeep, starsMid, starsNear;
 var floorMesh, contactShadow, studioCeilingLight, studioAmbientLight;
-var polishSpotLight, washBayLight;
-var headlightMat, rearLightMat, headlightLeft, headlightRight;
+var polishSpotLight, washBayLight, waterStreams, waterVelArr;
+var headlightMat, frontLensMat, rearLightMat;
 
 var isIntroActive = true;
 var introTimeline = null;
@@ -31,6 +31,7 @@ var currentCarPos = new THREE.Vector3(0, 0, 0);
 var currentCarRot = new THREE.Euler(0.94, 0.46, -0.44);
 var currentCamPos = new THREE.Vector3(0.2, 0.3, 10.0);
 var currentLookAt = new THREE.Vector3(-0.35, 0.15, 0);
+var currentFov = { value: 35 };
 var currentStudioFade = { value: 0 }; // 0 = cosmos, 1 = studio
 
 window.__state = { carLoaded: false, earthLoaded: false };
@@ -52,6 +53,7 @@ initDeepCosmosWithLayers();
 initCinematicSunlight();
 initPhotorealisticOrbitalEarth();
 initStudioEnvironment();
+initWaterWashStreams();
 loadFerrariF40();
 initScrollAndInteractions();
 animate();
@@ -62,10 +64,11 @@ animate();
 function initThree() {
   scene = new THREE.Scene();
   scene.background = new THREE.Color(0x000000);
-  scene.fog = new THREE.Fog(0x000000, 10, 26);
+  // Fog is NOT set initially so Earth and Cosmos are 100% visible!
+  scene.fog = null;
   window.scene = scene;
 
-  camera = new THREE.PerspectiveCamera(35, window.innerWidth / window.innerHeight, 0.1, 4000);
+  camera = new THREE.PerspectiveCamera(35, window.innerWidth / window.innerHeight, 0.08, 4000);
   camera.position.copy(currentCamPos);
   camera.lookAt(currentLookAt);
 
@@ -96,7 +99,6 @@ function createMonochromeStudioEnvironment() {
   envCanvas.height = 512;
   var ctx = envCanvas.getContext('2d');
 
-  // Deep neutral charcoal gradient (100% grayscale)
   var grad = ctx.createLinearGradient(0, 0, 0, 512);
   grad.addColorStop(0.0, '#020202');
   grad.addColorStop(0.45, '#070707');
@@ -107,7 +109,7 @@ function createMonochromeStudioEnvironment() {
   ctx.fillStyle = grad;
   ctx.fillRect(0, 0, 1024, 512);
 
-  // Clean pure white overhead studio softbox reflection
+  // Pure white overhead softbox reflection
   var softGrad = ctx.createRadialGradient(512, 100, 0, 512, 100, 160);
   softGrad.addColorStop(0, 'rgba(255, 255, 255, 0.95)');
   softGrad.addColorStop(0.3, 'rgba(255, 255, 255, 0.65)');
@@ -164,13 +166,15 @@ function initDeepCosmosWithLayers() {
     }
     geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
     geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
-    return new THREE.Points(geo, new THREE.PointsMaterial({
+    var mat = new THREE.PointsMaterial({
       size: size,
       vertexColors: true,
       transparent: true,
       opacity: opacity,
       sizeAttenuation: true
-    }));
+    });
+    mat.fog = false; // Never let fog dim the stars!
+    return new THREE.Points(geo, mat);
   }
 
   starsDeep = makeStars(6000, 900, 2000, 0.75, 0.85);
@@ -183,7 +187,7 @@ function initDeepCosmosWithLayers() {
 }
 
 /* ============================================================
-   PHOTOREALISTIC ORBITAL EARTH
+   PHOTOREALISTIC ORBITAL EARTH (NEVER BLOCKED BY FOG)
    ============================================================ */
 function initPhotorealisticOrbitalEarth() {
   var textureLoader = new THREE.TextureLoader();
@@ -213,7 +217,8 @@ function initPhotorealisticOrbitalEarth() {
     map: orbitalTex,
     toneMapped: true,
     transparent: true,
-    opacity: 1.0
+    opacity: 1.0,
+    fog: false // STRICT: Fog must NEVER obscure the Earth!
   });
 
   earthMesh = new THREE.Mesh(earthGeo, earthMat);
@@ -262,7 +267,7 @@ function createFloorAlphaMap() {
   aCanvas.height = 512;
   var aCtx = aCanvas.getContext('2d');
 
-  // Smooth radial falloff to zero opacity at the edges
+  // Smooth radial falloff to zero opacity at the edges (Zero harsh horizon line)
   var grad = aCtx.createRadialGradient(256, 256, 80, 256, 256, 256);
   grad.addColorStop(0, 'rgba(255, 255, 255, 1.0)');
   grad.addColorStop(0.5, 'rgba(255, 255, 255, 0.85)');
@@ -294,7 +299,7 @@ function createContactShadowTexture() {
 }
 
 /* ============================================================
-   MINIMALIST STUDIO ENVIRONMENT (MATTE-MIRROR FLOOR, ZERO HORIZON CUT)
+   MINIMALIST STUDIO ENVIRONMENT
    ============================================================ */
 function initStudioEnvironment() {
   // 1. Matte-Mirror Reflective Floor with Radial Falloff (Zero Blue, Zero Harsh Horizon)
@@ -345,12 +350,46 @@ function initStudioEnvironment() {
   polishSpotLight.position.set(-3.5, 1.8, 4.5);
   scene.add(polishSpotLight);
   scene.add(polishSpotLight.target);
+}
 
-  // 6. Car Twin Headlight Spotlights (Step 4)
-  headlightLeft = new THREE.SpotLight(0xffffff, 0, 35, Math.PI / 6, 0.4);
-  headlightRight = new THREE.SpotLight(0xffffff, 0, 35, Math.PI / 6, 0.4);
-  scene.add(headlightLeft);
-  scene.add(headlightRight);
+/* ============================================================
+   PROCEDURAL DETAILING WATER WASH STREAMS (STEP 1)
+   ============================================================ */
+function initWaterWashStreams() {
+  var streamCount = 320;
+  var positions = new Float32Array(streamCount * 6);
+  waterVelArr = new Float32Array(streamCount);
+
+  for (var i = 0; i < streamCount; i++) {
+    var x = -2.2 + (Math.random() - 0.5) * 2.5;
+    var y = 0.2 + Math.random() * 3.6;
+    var z = 2.6 + (Math.random() - 0.5) * 3.6;
+    var len = 0.2 + Math.random() * 0.25;
+
+    positions[i * 6]     = x;
+    positions[i * 6 + 1] = y;
+    positions[i * 6 + 2] = z;
+
+    positions[i * 6 + 3] = x;
+    positions[i * 6 + 4] = y - len;
+    positions[i * 6 + 5] = z;
+
+    waterVelArr[i] = 0.07 + Math.random() * 0.12;
+  }
+
+  var geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+
+  var mat = new THREE.LineBasicMaterial({
+    color: 0xffffff,
+    transparent: true,
+    opacity: 0.0,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false
+  });
+
+  waterStreams = new THREE.LineSegments(geo, mat);
+  scene.add(waterStreams);
 }
 
 /* ============================================================
@@ -387,18 +426,23 @@ function loadFerrariF40() {
 
           // Paint Material: High-Gloss Mirror Clearcoat
           if (mat.name === 'Paint' || mat.name.toLowerCase().includes('paint')) {
-            mat.roughness = 0.03;
+            mat.roughness = 0.02;
             mat.metalness = 0.35;
             mat.clearcoat = 1.0;
-            mat.clearcoatRoughness = 0.003;
+            mat.clearcoatRoughness = 0.002;
           }
 
-          // Cache light materials
+          // Real 3D Headlights & Front Lenses
           if (mat.name === 'Headlight') {
             headlightMat = mat;
             headlightMat.color.setRGB(1, 1, 1);
             headlightMat.emissive = new THREE.Color(0x000000);
             headlightMat.emissiveIntensity = 0;
+          }
+          if (mat.name === 'PaletteMaterial006') {
+            frontLensMat = mat;
+            frontLensMat.emissive = new THREE.Color(0x000000);
+            frontLensMat.emissiveIntensity = 0;
           }
           if (mat.name === 'RearLights') {
             rearLightMat = mat;
@@ -507,17 +551,19 @@ function getStepPose(step) {
         carRot: new THREE.Euler(0.94, 0.46, -0.44),
         camPos: new THREE.Vector3(0, 0, 7.5),
         lookAt: new THREE.Vector3(-0.35, 0.15, 0),
+        fov: 35,
         studioFade: 0.0,
         headlights: 0.0,
         washFade: 0.0
       };
 
-    case 1: // 01 WASH: Detailing bay entry (Tires flush on y=0, strictly on left)
+    case 1: // 01 WASH: Detailing bay entry with cascading water (Strictly on left, tires on floor)
       return {
         carPos: new THREE.Vector3(isDesktop ? -2.2 : 0, 0.0, isDesktop ? 2.6 : 2.2),
         carRot: new THREE.Euler(0.0, 0.72, 0.0),
         camPos: new THREE.Vector3(0, 0.35, 7.2),
         lookAt: new THREE.Vector3(-0.6, 0.28, 0),
+        fov: 35,
         studioFade: 1.0,
         headlights: 0.0,
         washFade: 1.0
@@ -526,32 +572,35 @@ function getStepPose(step) {
     case 2: // 02 POLISH: Flank macro reflection & scanning inspection spotlight (Strictly on left)
       return {
         carPos: new THREE.Vector3(isDesktop ? -2.0 : 0, 0.0, isDesktop ? 3.4 : 2.6),
-        carRot: new THREE.Euler(0.0, 1.48, 0.0),
-        camPos: new THREE.Vector3(-0.1, 0.32, 6.0),
-        lookAt: new THREE.Vector3(-0.75, 0.28, 0),
+        carRot: new THREE.Euler(0.0, 1.50, 0.0),
+        camPos: new THREE.Vector3(-0.6, 0.38, 5.2),
+        lookAt: new THREE.Vector3(-1.4, 0.34, 3.4),
+        fov: 35,
         studioFade: 1.0,
         headlights: 0.0,
         washFade: 0.0
       };
 
-    case 3: // 03 INTERIOR: Camera points inside cockpit (Strictly on left)
+    case 3: // 03 INTERIOR: Camera flies INSIDE driver cockpit (Steering wheel, Dials, Alcantara)
       return {
-        carPos: new THREE.Vector3(isDesktop ? -1.8 : 0, 0.0, isDesktop ? 2.8 : 2.2),
-        carRot: new THREE.Euler(0.0, 0.42, 0.0),
-        camPos: new THREE.Vector3(isDesktop ? -0.7 : -0.2, 0.42, isDesktop ? 4.8 : 4.0),
-        lookAt: new THREE.Vector3(isDesktop ? -0.8 : -0.2, 0.36, 2.8),
+        carPos: new THREE.Vector3(isDesktop ? -1.4 : 0, 0.0, isDesktop ? 2.0 : 1.6),
+        carRot: new THREE.Euler(0.0, 0.35, 0.0),
+        camPos: new THREE.Vector3(isDesktop ? -1.64 : -0.24, 0.46, isDesktop ? 2.04 : 1.64),
+        lookAt: new THREE.Vector3(isDesktop ? -1.95 : -0.24, 0.38, isDesktop ? 1.19 : 0.8),
+        fov: 52, // Wide immersive interior cabin FOV
         studioFade: 1.0,
         headlights: 0.0,
         washFade: 0.0
       };
 
-    case 4: // 04 STUDIO & LOCATION: Centered, elevated above bottom text, headlights on
+    case 4: // 04 STUDIO & LOCATION: Front faces camera (rot.y = PI), nose tilted down, headlights on
     default:
       return {
-        carPos: new THREE.Vector3(0, isDesktop ? 0.38 : 0.55, isDesktop ? 2.5 : 2.0),
-        carRot: new THREE.Euler(0.04, 0.0, 0.0),
-        camPos: new THREE.Vector3(0, 0.52, 6.8),
-        lookAt: new THREE.Vector3(0, 0.38, 0),
+        carPos: new THREE.Vector3(0, isDesktop ? 0.08 : 0.22, isDesktop ? 2.6 : 2.1),
+        carRot: new THREE.Euler(-0.09, Math.PI, 0.0), // Front bumper faces camera, nose down
+        camPos: new THREE.Vector3(0, 0.55, 6.2),
+        lookAt: new THREE.Vector3(0, 0.22, 0),
+        fov: 35,
         studioFade: 1.0,
         headlights: 1.0,
         washFade: 0.0
@@ -776,6 +825,7 @@ function animate() {
     var targetCarP = new THREE.Vector3().lerpVectors(poseA.carPos, poseB.carPos, stepFrac);
     var targetCamP = new THREE.Vector3().lerpVectors(poseA.camPos, poseB.camPos, stepFrac);
     var targetLook = new THREE.Vector3().lerpVectors(poseA.lookAt, poseB.lookAt, stepFrac);
+    var targetFovVal = THREE.MathUtils.lerp(poseA.fov, poseB.fov, stepFrac);
 
     var targetRotX = THREE.MathUtils.lerp(poseA.carRot.x, poseB.carRot.x, stepFrac);
     var targetRotY = THREE.MathUtils.lerp(poseA.carRot.y, poseB.carRot.y, stepFrac);
@@ -786,15 +836,19 @@ function animate() {
     var targetWash = THREE.MathUtils.lerp(poseA.washFade, poseB.washFade, stepFrac);
 
     // Subtle parallax tilt
-    targetCamP.x += mouse.x * 0.22;
-    targetCamP.y += -mouse.y * 0.15;
-    targetLook.x += mouse.x * 0.06;
-    targetLook.y += -mouse.y * 0.04;
+    targetCamP.x += mouse.x * 0.16;
+    targetCamP.y += -mouse.y * 0.12;
+    targetLook.x += mouse.x * 0.04;
+    targetLook.y += -mouse.y * 0.03;
 
     // Smooth LERP (Spring damping)
     currentCarPos.lerp(targetCarP, 0.065);
     currentCamPos.lerp(targetCamP, 0.065);
     currentLookAt.lerp(targetLook, 0.065);
+    currentFov.value += (targetFovVal - currentFov.value) * 0.065;
+
+    camera.fov = currentFov.value;
+    camera.updateProjectionMatrix();
 
     currentCarRot.x += (targetRotX - currentCarRot.x) * 0.065;
     currentCarRot.y += (targetRotY - currentCarRot.y) * 0.065;
@@ -816,9 +870,16 @@ function animate() {
     camera.position.copy(currentCamPos);
     camera.lookAt(currentLookAt);
 
-    // Studio Environment Fading
-    var sFade = currentStudioFade.value;
+    // Dynamic Fog Management: Only active when entering studio
+    if (sFade > 0.08) {
+      if (!scene.fog) {
+        scene.fog = new THREE.Fog(0x000000, 12, 28);
+      }
+    } else {
+      scene.fog = null;
+    }
 
+    // Studio Environment Fading
     if (floorMesh) {
       floorMesh.material.opacity = sFade * 0.94;
     }
@@ -858,19 +919,37 @@ function animate() {
       starsNear.visible = (starAlpha > 0.001);
     }
 
-    // 1. WASH BAY CLEANROOM LIGHTING (ACTIVE ON STEP 1)
+    // 1. CASCADING WATER STREAMS & CLEANROOM LIGHT (ACTIVE ON STEP 1: WASH)
+    if (waterStreams) {
+      waterStreams.material.opacity = targetWash * 0.85;
+      if (targetWash > 0.01) {
+        var pos = waterStreams.geometry.attributes.position.array;
+        var sCount = pos.length / 6;
+        for (var si = 0; si < sCount; si++) {
+          var vel = waterVelArr[si];
+          pos[si * 6 + 1] -= vel;
+          pos[si * 6 + 4] -= vel;
+
+          if (pos[si * 6 + 4] < 0.02) {
+            pos[si * 6 + 1] = 3.6;
+            pos[si * 6 + 4] = 3.35;
+          }
+        }
+        waterStreams.geometry.attributes.position.needsUpdate = true;
+      }
+    }
     if (washBayLight) {
       washBayLight.intensity = targetWash * 6.5;
       washBayLight.target.position.set(currentCarPos.x, currentCarPos.y, currentCarPos.z);
       washBayLight.target.updateMatrixWorld();
     }
 
-    // 2. POLISHING GLIDING INSPECTION SPOTLIGHT (ACTIVE ON STEP 2)
+    // 2. POLISHING GLIDING INSPECTION SPOTLIGHT (ACTIVE ON STEP 2: POLISH)
     if (polishSpotLight) {
       var isPolishActive = (baseStep === 2 || nextStep === 2);
-      polishSpotLight.intensity = isPolishActive ? (12.0 + Math.sin(elapsedTime * 2.5) * 3.5) * sFade : 0;
+      polishSpotLight.intensity = isPolishActive ? (14.0 + Math.sin(elapsedTime * 2.5) * 4.0) * sFade : 0;
       polishSpotLight.position.set(
-        currentCarPos.x - 1.2 + Math.sin(elapsedTime * 1.8) * 1.1,
+        currentCarPos.x - 1.1 + Math.sin(elapsedTime * 1.8) * 1.1,
         currentCarPos.y + 0.85,
         currentCarPos.z + 1.2
       );
@@ -878,30 +957,18 @@ function animate() {
       polishSpotLight.target.updateMatrixWorld();
     }
 
-    // 3. HEADLIGHT IGNITION & BEAMS (ACTIVE ON STEP 4)
+    // 3. HEADLIGHT IGNITION ON CAR (ACTIVE ON STEP 4: STUDIO)
     if (headlightMat) {
       headlightMat.emissive.setRGB(targetLights, targetLights, targetLights);
-      headlightMat.emissiveIntensity = targetLights * 25.0;
+      headlightMat.emissiveIntensity = targetLights * 28.0;
+    }
+    if (frontLensMat) {
+      frontLensMat.emissive.setRGB(targetLights, targetLights, targetLights);
+      frontLensMat.emissiveIntensity = targetLights * 22.0;
     }
     if (rearLightMat) {
       rearLightMat.emissive.setRGB(targetLights * 1.0, targetLights * 0.02, 0);
       rearLightMat.emissiveIntensity = targetLights * 12.0;
-    }
-    if (headlightLeft && headlightRight && carModel) {
-      headlightLeft.intensity = targetLights * 10.0;
-      headlightRight.intensity = targetLights * 10.0;
-
-      // Project twin light beams forward from bumper onto the floor
-      var headLPos = new THREE.Vector3(-0.58, 0.25, 1.4).applyMatrix4(carGroup.matrixWorld);
-      var headRPos = new THREE.Vector3(0.58, 0.25, 1.4).applyMatrix4(carGroup.matrixWorld);
-      var headTarget = new THREE.Vector3(0, -0.2, 9.0).applyMatrix4(carGroup.matrixWorld);
-
-      headlightLeft.position.copy(headLPos);
-      headlightRight.position.copy(headRPos);
-      headlightLeft.target.position.copy(headTarget);
-      headlightRight.target.position.copy(headTarget);
-      headlightLeft.target.updateMatrixWorld();
-      headlightRight.target.updateMatrixWorld();
     }
   }
 
