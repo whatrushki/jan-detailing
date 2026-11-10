@@ -174,12 +174,12 @@ html, body {
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  padding: 0 10vw 0 0;
+  padding: 0 8vw 0 0;
 }
 
 .services-minimal {
   width: 100%;
-  max-width: 460px;
+  max-width: 480px;
   position: relative;
   min-height: 320px;
   display: flex;
@@ -213,8 +213,9 @@ html, body {
   font-family: 'JetBrains Mono', monospace;
   font-size: 11px;
   letter-spacing: 3px;
-  color: rgba(255, 255, 255, 0.5);
+  color: rgba(255, 255, 255, 0.55);
   margin-bottom: 14px;
+  text-shadow: 0 2px 10px rgba(0, 0, 0, 0.95);
 }
 
 .service-title {
@@ -226,17 +227,17 @@ html, body {
   color: #ffffff;
   margin-bottom: 16px;
   text-transform: uppercase;
-  text-shadow: 0 4px 30px rgba(0, 0, 0, 0.9);
+  text-shadow: 0 2px 25px rgba(0, 0, 0, 0.95), 0 0 50px rgba(0, 0, 0, 0.9);
 }
 
 .service-desc {
   font-family: 'Montserrat', sans-serif;
   font-size: 13px;
   font-weight: 300;
-  line-height: 1.65;
-  color: rgba(255, 255, 255, 0.8);
+  line-height: 1.7;
+  color: rgba(255, 255, 255, 0.85);
   margin-bottom: 26px;
-  text-shadow: 0 2px 10px rgba(0, 0, 0, 0.9);
+  text-shadow: 0 2px 20px rgba(0, 0, 0, 0.95);
 }
 
 .service-meta {
@@ -251,6 +252,7 @@ html, body {
   font-weight: 700;
   letter-spacing: 1.5px;
   color: #ffffff;
+  text-shadow: 0 2px 15px rgba(0, 0, 0, 0.95);
 }
 
 .minimal-link-btn {
@@ -267,11 +269,12 @@ html, body {
   text-underline-offset: 5px;
   padding: 0;
   transition: all 0.25s ease;
+  text-shadow: 0 2px 15px rgba(0, 0, 0, 0.95);
 }
 
 .minimal-link-btn:hover {
   color: #ffffff;
-  text-shadow: 0 0 10px rgba(255, 255, 255, 0.8);
+  text-shadow: 0 0 10px rgba(255, 255, 255, 0.9);
 }
 
 /* -------------------------------------------------------------
@@ -281,7 +284,7 @@ html, body {
   display: flex;
   align-items: flex-end;
   justify-content: center;
-  padding-bottom: 48px;
+  padding-bottom: 38px;
 }
 
 .studio-minimal-wrap {
@@ -289,13 +292,14 @@ html, body {
   pointer-events: auto;
   max-width: 860px;
   padding: 0 24px;
+  text-shadow: 0 2px 20px rgba(0, 0, 0, 0.95);
 }
 
 .studio-tag {
   font-family: 'JetBrains Mono', monospace;
   font-size: 11px;
   letter-spacing: 3px;
-  color: rgba(255, 255, 255, 0.5);
+  color: rgba(255, 255, 255, 0.55);
   margin-bottom: 8px;
 }
 
@@ -307,7 +311,7 @@ html, body {
   color: #ffffff;
   margin-bottom: 8px;
   text-transform: uppercase;
-  text-shadow: 0 4px 25px rgba(0, 0, 0, 0.9);
+  text-shadow: 0 4px 25px rgba(0, 0, 0, 0.95);
 }
 
 .studio-location {
@@ -315,7 +319,7 @@ html, body {
   font-size: 11px;
   font-weight: 400;
   letter-spacing: 2px;
-  color: rgba(255, 255, 255, 0.65);
+  color: rgba(255, 255, 255, 0.7);
   margin-bottom: 22px;
   text-transform: uppercase;
 }
