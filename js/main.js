@@ -14,6 +14,7 @@ var starsDeep, starsMid, starsNear;
 var floorMesh, contactShadow, studioCeilingLight, studioAmbientLight;
 var polishSpotLight, washBayLight, waterStreams, waterVelArr;
 var headlightMat, frontLensMat, rearLightMat;
+var carModelTireOffset = -0.56;
 
 var isIntroActive = true;
 var introTimeline = null;
@@ -315,7 +316,7 @@ function initStudioEnvironment() {
   });
   floorMesh = new THREE.Mesh(floorGeo, floorMat);
   floorMesh.rotation.x = -Math.PI / 2;
-  floorMesh.position.y = 0.0; // Ground plane exactly at y = 0
+  floorMesh.position.y = -0.56; // Ground plane sits flush under tires
   scene.add(floorMesh);
 
   // 2. Soft Contact Ground Shadow under the car
@@ -328,7 +329,7 @@ function initStudioEnvironment() {
   });
   contactShadow = new THREE.Mesh(shadowGeo, shadowMat);
   contactShadow.rotation.x = -Math.PI / 2;
-  contactShadow.position.y = 0.005; // 5mm above floor
+  contactShadow.position.y = -0.555; // 5mm above floor
   scene.add(contactShadow);
 
   // 3. Studio Overhead Directional Soft Light & Ambient (Pure White)
@@ -361,9 +362,9 @@ function initWaterWashStreams() {
   waterVelArr = new Float32Array(streamCount);
 
   for (var i = 0; i < streamCount; i++) {
-    var x = -2.2 + (Math.random() - 0.5) * 2.5;
+    var x = -1.45 + (Math.random() - 0.5) * 2.8;
     var y = 0.2 + Math.random() * 3.6;
-    var z = 2.6 + (Math.random() - 0.5) * 3.6;
+    var z = 3.1 + (Math.random() - 0.5) * 3.6;
     var len = 0.2 + Math.random() * 0.25;
 
     positions[i * 6]     = x;
@@ -407,18 +408,19 @@ function loadFerrariF40() {
       var size = box.getSize(new THREE.Vector3());
       var center = box.getCenter(new THREE.Vector3());
 
+      // Center exactly at center of mass as in b696b71
+      carModel.position.x = -center.x;
+      carModel.position.y = -center.y;
+      carModel.position.z = -center.z;
+
       var maxDim = Math.max(size.x, size.y, size.z);
       var targetScale = 3.25 / maxDim;
       carModel.scale.setScalar(targetScale);
 
-      // Recompute bounding box after scale to get exact bottom of tires
-      box.setFromObject(carModel);
-      center = box.getCenter(new THREE.Vector3());
-
-      // Center X and Z, and place the bottom of the tires EXACTLY at y = 0
-      carModel.position.x = -center.x;
-      carModel.position.y = -box.min.y; // Lowest point (tires) is exactly at y = 0!
-      carModel.position.z = -center.z;
+      // Measure exact bottom of tires in carGroup coordinates
+      var scaledBox = new THREE.Box3().setFromObject(carModel);
+      carModelTireOffset = scaledBox.min.y;
+      window.__carModelTireOffset = carModelTireOffset;
 
       carModel.traverse(function(node) {
         if (node.isMesh && node.material) {
@@ -545,7 +547,7 @@ function getStepPose(step) {
   var isDesktop = window.innerWidth > 900;
 
   switch (step) {
-    case 0: // HERO: Space orbit (Original b696b71 stance)
+    case 0: // HERO: Space orbit (Restored exact b696b71 stance & center of mass)
       return {
         carPos: new THREE.Vector3(isDesktop ? -0.92 : 0, isDesktop ? 0.36 : 0.98, isDesktop ? 2.4 : 1.9),
         carRot: new THREE.Euler(0.94, 0.46, -0.44),
@@ -557,49 +559,49 @@ function getStepPose(step) {
         washFade: 0.0
       };
 
-    case 1: // 01 WASH: Detailing bay entry with cascading water (Strictly on left, tires on floor)
+    case 1: // 01 WASH: Detailing bay with cascading water (Closer, wider stance, slightly lower)
       return {
-        carPos: new THREE.Vector3(isDesktop ? -2.2 : 0, 0.0, isDesktop ? 2.6 : 2.2),
-        carRot: new THREE.Euler(0.0, 0.72, 0.0),
-        camPos: new THREE.Vector3(0, 0.35, 7.2),
-        lookAt: new THREE.Vector3(-0.6, 0.28, 0),
+        carPos: new THREE.Vector3(isDesktop ? -1.45 : 0, isDesktop ? -0.12 : 0.65, isDesktop ? 3.1 : 2.4),
+        carRot: new THREE.Euler(0.02, 0.65, 0.0),
+        camPos: new THREE.Vector3(-0.1, 0.28, 6.4),
+        lookAt: new THREE.Vector3(-0.55, 0.15, 0),
         fov: 35,
         studioFade: 1.0,
         headlights: 0.0,
         washFade: 1.0
       };
 
-    case 2: // 02 POLISH: Flank macro reflection & scanning inspection spotlight (Strictly on left)
+    case 2: // 02 POLISH: Flank reflection & scanning light (Separated cleanly from right text)
       return {
-        carPos: new THREE.Vector3(isDesktop ? -2.0 : 0, 0.0, isDesktop ? 3.4 : 2.6),
-        carRot: new THREE.Euler(0.0, 1.50, 0.0),
-        camPos: new THREE.Vector3(-0.6, 0.38, 5.2),
-        lookAt: new THREE.Vector3(-1.4, 0.34, 3.4),
+        carPos: new THREE.Vector3(isDesktop ? -1.75 : 0, isDesktop ? -0.05 : 0.65, isDesktop ? 3.0 : 2.5),
+        carRot: new THREE.Euler(0.0, 1.45, 0.0),
+        camPos: new THREE.Vector3(-0.25, 0.32, 6.2),
+        lookAt: new THREE.Vector3(-0.85, 0.22, 0),
         fov: 35,
         studioFade: 1.0,
         headlights: 0.0,
         washFade: 0.0
       };
 
-    case 3: // 03 INTERIOR: Camera flies INSIDE driver cockpit (Steering wheel, Dials, Alcantara)
+    case 3: // 03 INTERIOR: Looking into cockpit from upper windshield corner angle
       return {
-        carPos: new THREE.Vector3(isDesktop ? -1.4 : 0, 0.0, isDesktop ? 2.0 : 1.6),
-        carRot: new THREE.Euler(0.0, 0.35, 0.0),
-        camPos: new THREE.Vector3(isDesktop ? -1.64 : -0.24, 0.46, isDesktop ? 2.04 : 1.64),
-        lookAt: new THREE.Vector3(isDesktop ? -1.95 : -0.24, 0.38, isDesktop ? 1.19 : 0.8),
-        fov: 52, // Wide immersive interior cabin FOV
+        carPos: new THREE.Vector3(isDesktop ? -1.3 : 0, -0.08, isDesktop ? 2.2 : 1.8),
+        carRot: new THREE.Euler(0.0, 0.40, 0.0),
+        camPos: new THREE.Vector3(-1.45, 0.62, 3.4),
+        lookAt: new THREE.Vector3(-0.95, 0.35, 1.6),
+        fov: 46,
         studioFade: 1.0,
         headlights: 0.0,
         washFade: 0.0
       };
 
-    case 4: // 04 STUDIO & LOCATION: Front faces camera (rot.y = PI), nose tilted down, headlights on
+    case 4: // 04 STUDIO & LOCATION: Front faces camera (rot.y = PI), lowered slightly, headlights on
     default:
       return {
-        carPos: new THREE.Vector3(0, isDesktop ? 0.08 : 0.22, isDesktop ? 2.6 : 2.1),
-        carRot: new THREE.Euler(-0.09, Math.PI, 0.0), // Front bumper faces camera, nose down
-        camPos: new THREE.Vector3(0, 0.55, 6.2),
-        lookAt: new THREE.Vector3(0, 0.22, 0),
+        carPos: new THREE.Vector3(0, isDesktop ? -0.08 : 0.05, isDesktop ? 2.6 : 2.1),
+        carRot: new THREE.Euler(-0.08, Math.PI, 0.0), // Front bumper faces camera, nose slightly down
+        camPos: new THREE.Vector3(0, 0.42, 6.2),
+        lookAt: new THREE.Vector3(0, 0.08, 0),
         fov: 35,
         studioFade: 1.0,
         headlights: 1.0,
@@ -856,14 +858,7 @@ function animate() {
 
     currentStudioFade.value += (targetFade - currentStudioFade.value) * 0.06;
 
-    // Strict Ground Penetration Protection (Car tires and nose NEVER dip below y = 0)
     var sFade = currentStudioFade.value;
-    if (sFade > 0.05) {
-      var pitchDip = Math.max(0, Math.sin(Math.max(0, currentCarRot.x)) * 1.4);
-      if (currentCarPos.y < pitchDip) {
-        currentCarPos.y = pitchDip;
-      }
-    }
 
     carGroup.position.copy(currentCarPos);
     carGroup.rotation.copy(currentCarRot);
@@ -879,13 +874,16 @@ function animate() {
       scene.fog = null;
     }
 
-    // Studio Environment Fading
+    // Studio Environment Fading & Ground Alignment Flush Under Tires
+    var groundY = currentCarPos.y + carModelTireOffset;
     if (floorMesh) {
+      floorMesh.position.y = groundY;
       floorMesh.material.opacity = sFade * 0.94;
     }
     if (contactShadow) {
       contactShadow.position.x = currentCarPos.x;
       contactShadow.position.z = currentCarPos.z;
+      contactShadow.position.y = groundY + 0.005;
       contactShadow.material.opacity = sFade * 0.88;
     }
     if (studioCeilingLight) {
@@ -940,6 +938,7 @@ function animate() {
     }
     if (washBayLight) {
       washBayLight.intensity = targetWash * 6.5;
+      washBayLight.position.set(currentCarPos.x, currentCarPos.y + 5.5, currentCarPos.z);
       washBayLight.target.position.set(currentCarPos.x, currentCarPos.y, currentCarPos.z);
       washBayLight.target.updateMatrixWorld();
     }
