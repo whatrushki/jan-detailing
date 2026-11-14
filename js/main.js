@@ -15,6 +15,10 @@ var starsDeep, starsMid, starsNear;
 var floorMesh, contactShadow, studioCeilingLight, studioAmbientLight;
 var polishSpotLight, washBayLight, waterStreams, waterVelArr;
 var aeroSmokeGroup, aeroSmokeParticles, aeroSmokeLines, aeroSmokeMat, aeroLinesMat, aeroGeo, aeroParticleData, aeroSamples, aeroPositions, aeroColors;
+var aeroRibbonMesh, aeroRibbonGeo, aeroRibbonMat, aeroRibbonPos, aeroRibbonCol;
+var hyperjumpGroup, hyperjumpLines, hyperjumpGeo, hyperjumpMat, hyperjumpPos, hyperjumpCol, hyperjumpData;
+var hyperjumpProgress = { value: 0 };
+var isHyperjumpAnimating = false;
 var headlightMat, frontLensMat, rearLightMat;
 var carModelTireOffset = -0.56;
 
@@ -94,6 +98,7 @@ initCinematicSunlight();
 initPhotorealisticOrbitalEarth();
 initStudioEnvironment();
 initAerodynamicWindTunnelSmoke();
+initHyperspaceSystem();
 loadFerrariF40();
 initScrollAndInteractions();
 initTuner({
@@ -447,12 +452,161 @@ function getF40SurfaceY(x, z) {
   return 0.25;
 }
 
+/* ============================================================
+   AERODYNAMIC WIND TUNNEL 3D FLOW FIELD (STEP 1: WASH / AERO DRY)
+   24 continuous laminar streamlines enveloping the car from all sides:
+   Top, Sides (NACA ducts, arches), Underbody (diffuser), and Wake vortices
+   ============================================================ */
+var AERO_LANE_COUNT = 24;
+var AERO_SEGS_PER_LANE = 42;
+
+function getStreamlineTrajectory(laneIdx, z, time) {
+  var x = 0, y = 0;
+  var isWake = (z < -1.55);
+  var wakeDist = isWake ? (-1.55 - z) : 0;
+  var phase = laneIdx * 0.65;
+
+  if (laneIdx === 0) {
+    x = 0;
+    y = getF40SurfaceY(0, z) + 0.018;
+  } else if (laneIdx === 1 || laneIdx === 2) {
+    var s1 = (laneIdx === 1) ? -1 : 1;
+    x = s1 * 0.18;
+    y = getF40SurfaceY(x, z) + 0.018;
+  } else if (laneIdx === 3 || laneIdx === 4) {
+    var s2 = (laneIdx === 3) ? -1 : 1;
+    x = s2 * 0.35;
+    y = getF40SurfaceY(x, z) + 0.018;
+  } else if (laneIdx === 5 || laneIdx === 6) {
+    var s3 = (laneIdx === 5) ? -1 : 1;
+    x = s3 * 0.20;
+    var roofBump = Math.max(0, 1.0 - Math.pow((z + 0.15) / 0.85, 2));
+    y = 0.48 + roofBump * 0.08;
+  } else if (laneIdx === 7) {
+    x = 0;
+    var roofBump2 = Math.max(0, 1.0 - Math.pow((z + 0.15) / 0.95, 2));
+    y = 0.58 + roofBump2 * 0.09;
+  } else if (laneIdx >= 8 && laneIdx <= 15) {
+    var pair = (laneIdx - 8);
+    var sSide = (pair % 2 === 0) ? -1 : 1;
+    var level = Math.floor(pair / 2);
+    var yLevels = [0.16, 0.02, -0.12, -0.26];
+    y = yLevels[level];
+
+    var widthProfile;
+    if (z > 0.8) widthProfile = 0.65 + (1.35 - z) * 0.15;
+    else if (z > 0.2) widthProfile = 0.73 - (0.8 - z) * 0.20;
+    else if (z > -0.6) widthProfile = 0.61 + (-0.2 - z) * 0.15;
+    else if (z > -1.4) widthProfile = 0.74 - (-0.6 - z) * 0.05;
+    else widthProfile = 0.70;
+    x = sSide * (widthProfile + (3 - level) * 0.015);
+  } else if (laneIdx >= 16 && laneIdx <= 19) {
+    var sUnder = (laneIdx === 16) ? 0 : ((laneIdx === 17) ? -0.28 : ((laneIdx === 18) ? 0.28 : -0.12));
+    x = sUnder;
+    if (z > -1.0) y = -0.38;
+    else y = -0.38 + (-1.0 - z) * 0.20;
+  } else if (laneIdx === 20 || laneIdx === 21) {
+    var sGround = (laneIdx === 20) ? -0.35 : 0.35;
+    x = sGround;
+    y = -0.46;
+  } else {
+    var sOut = (laneIdx === 22) ? -1 : 1;
+    x = sOut * 0.88;
+    y = 0.06;
+  }
+
+  if (isWake) {
+    var freq = 9.5;
+    var speed = 6.0;
+    var amp = Math.min(0.24, wakeDist * 0.16);
+    y += Math.sin(wakeDist * freq - time * speed + phase) * amp;
+    x += Math.cos(wakeDist * freq - time * speed + phase) * (amp * 0.5);
+  }
+
+  return { x: x, y: y, z: z };
+}
+
 function initAerodynamicWindTunnelSmoke() {
   aeroSmokeGroup = new THREE.Group();
   aeroSmokeGroup.visible = false;
   carGroup.add(aeroSmokeGroup);
 
-  // Silky, delicate aerodynamic smoke filament texture (128x128)
+  // 1. Continuous Aerodynamic Streamline Ribbons (Laminar Smoke Sheets)
+  var numStreams = AERO_LANE_COUNT;
+  var numSegs = AERO_SEGS_PER_LANE;
+  var totalVerts = numStreams * numSegs * 2;
+
+  aeroRibbonPos = new Float32Array(totalVerts * 3);
+  aeroRibbonCol = new Float32Array(totalVerts * 3);
+  var ribbonIndices = [];
+
+  for (var s = 0; s < numStreams; s++) {
+    var baseV = s * numSegs * 2;
+    for (var i = 0; i < numSegs - 1; i++) {
+      var v0 = baseV + i * 2;
+      var v1 = v0 + 1;
+      var v2 = v0 + 2;
+      var v3 = v0 + 3;
+      ribbonIndices.push(v0, v1, v2);
+      ribbonIndices.push(v2, v1, v3);
+    }
+  }
+
+  var halfWidth = 0.016;
+  var vIdx = 0;
+  for (var sIdx = 0; sIdx < numStreams; sIdx++) {
+    var isSideStream = (sIdx >= 8 && sIdx <= 15);
+    for (var seg = 0; seg < numSegs; seg++) {
+      var tFrac = seg / (numSegs - 1);
+      var z = 1.35 - tFrac * 4.55;
+      var pt = getStreamlineTrajectory(sIdx, z, 0);
+
+      var alpha = 1.0;
+      if (z > 0.95) alpha = Math.max(0, (1.35 - z) / 0.40);
+      else if (z < -1.8) alpha = Math.max(0, 1.0 - (-1.8 - z) / 1.40);
+
+      var dx0 = isSideStream ? 0 : -halfWidth;
+      var dy0 = isSideStream ? -halfWidth : 0;
+      var dx1 = isSideStream ? 0 : halfWidth;
+      var dy1 = isSideStream ? halfWidth : 0;
+
+      aeroRibbonPos[vIdx * 3]     = pt.x + dx0;
+      aeroRibbonPos[vIdx * 3 + 1] = pt.y + dy0;
+      aeroRibbonPos[vIdx * 3 + 2] = pt.z;
+      aeroRibbonCol[vIdx * 3]     = alpha * 0.92;
+      aeroRibbonCol[vIdx * 3 + 1] = alpha * 0.95;
+      aeroRibbonCol[vIdx * 3 + 2] = alpha * 1.00;
+      vIdx++;
+
+      aeroRibbonPos[vIdx * 3]     = pt.x + dx1;
+      aeroRibbonPos[vIdx * 3 + 1] = pt.y + dy1;
+      aeroRibbonPos[vIdx * 3 + 2] = pt.z;
+      aeroRibbonCol[vIdx * 3]     = alpha * 0.92;
+      aeroRibbonCol[vIdx * 3 + 1] = alpha * 0.95;
+      aeroRibbonCol[vIdx * 3 + 2] = alpha * 1.00;
+      vIdx++;
+    }
+  }
+
+  aeroRibbonGeo = new THREE.BufferGeometry();
+  aeroRibbonGeo.setAttribute('position', new THREE.BufferAttribute(aeroRibbonPos, 3));
+  aeroRibbonGeo.setAttribute('color', new THREE.BufferAttribute(aeroRibbonCol, 3));
+  aeroRibbonGeo.setIndex(ribbonIndices);
+
+  aeroRibbonMat = new THREE.MeshBasicMaterial({
+    vertexColors: true,
+    transparent: true,
+    opacity: 0.0,
+    blending: THREE.AdditiveBlending,
+    side: THREE.DoubleSide,
+    depthWrite: false
+  });
+  aeroRibbonMat.fog = false;
+
+  aeroRibbonMesh = new THREE.Mesh(aeroRibbonGeo, aeroRibbonMat);
+  aeroSmokeGroup.add(aeroRibbonMesh);
+
+  // 2. Volumetric Smoke Particles traveling along the 24 streamlines
   var smokeCanvas = document.createElement('canvas');
   smokeCanvas.width = 128;
   smokeCanvas.height = 128;
@@ -467,63 +621,45 @@ function initAerodynamicWindTunnelSmoke() {
   sCtx.fillRect(0, 0, 128, 128);
   var smokeTex = new THREE.CanvasTexture(smokeCanvas);
 
-  // 5 elegant, focused aerodynamic streamline ribbons (like laser-illuminated wind tunnel smoke nozzles)
-  // Ribbons start slightly behind front bumper on hood (z = 0.95) so no front wall is seen!
-  var lanes = [
-    { base: 0.00, spread: 0.035, count: 650 },
-    { base: -0.22, spread: 0.030, count: 500 },
-    { base: 0.22, spread: 0.030, count: 500 },
-    { base: -0.42, spread: 0.030, count: 450 },
-    { base: 0.42, spread: 0.030, count: 450 }
-  ];
-
-  var totalParticles = 0;
-  lanes.forEach(function(l) { totalParticles += l.count; });
-
+  var particlesPerLane = 50;
+  var totalParticles = numStreams * particlesPerLane;
   aeroParticleData = [];
   aeroPositions = new Float32Array(totalParticles * 3);
   aeroColors = new Float32Array(totalParticles * 3);
 
-  var pIndex = 0;
-  lanes.forEach(function(lane) {
-    for (var i = 0; i < lane.count; i++) {
-      var lateralOffset = (Math.random() - 0.5) * lane.spread;
-      var laneX = lane.base + lateralOffset;
+  var pIdx = 0;
+  for (var s = 0; s < numStreams; s++) {
+    for (var p = 0; p < particlesPerLane; p++) {
       var initT = Math.random();
-      var speed = 0.28 + Math.random() * 0.10;
-      var hover = 0.012 + Math.random() * 0.012;
+      var speed = 0.28 + Math.random() * 0.12;
       var phase = Math.random() * Math.PI * 2;
-
-      var z = 0.95 - initT * 3.55;
-      var y = getF40SurfaceY(laneX, z) + hover;
+      var z = 1.35 - initT * 4.55;
+      var pt = getStreamlineTrajectory(s, z, 0);
 
       aeroParticleData.push({
-        baseLane: lane.base,
-        lateralOffset: lateralOffset,
+        lane: s,
         t: initT,
         speed: speed,
-        hover: hover,
         phase: phase
       });
 
-      aeroPositions[pIndex * 3]     = laneX;
-      aeroPositions[pIndex * 3 + 1] = y;
-      aeroPositions[pIndex * 3 + 2] = z;
+      aeroPositions[pIdx * 3]     = pt.x;
+      aeroPositions[pIdx * 3 + 1] = pt.y;
+      aeroPositions[pIdx * 3 + 2] = pt.z;
 
-      aeroColors[pIndex * 3]     = 1.0;
-      aeroColors[pIndex * 3 + 1] = 1.0;
-      aeroColors[pIndex * 3 + 2] = 1.0;
-      pIndex++;
+      aeroColors[pIdx * 3]     = 1.0;
+      aeroColors[pIdx * 3 + 1] = 1.0;
+      aeroColors[pIdx * 3 + 2] = 1.0;
+      pIdx++;
     }
-  });
+  }
 
   aeroGeo = new THREE.BufferGeometry();
   aeroGeo.setAttribute('position', new THREE.BufferAttribute(aeroPositions, 3));
   aeroGeo.setAttribute('color', new THREE.BufferAttribute(aeroColors, 3));
 
-  // Small, sharp, delicate particles that form sleek continuous silky ribbons
   aeroSmokeMat = new THREE.PointsMaterial({
-    size: 0.14,
+    size: 0.16,
     map: smokeTex,
     vertexColors: true,
     transparent: true,
@@ -536,6 +672,103 @@ function initAerodynamicWindTunnelSmoke() {
 
   aeroSmokeParticles = new THREE.Points(aeroGeo, aeroSmokeMat);
   aeroSmokeGroup.add(aeroSmokeParticles);
+}
+
+/* ============================================================
+   HYPERSPACE WARP JUMP SYSTEM (STEP 4 / FINAL SCREEN)
+   Relativistic Star Wars lightspeed streaks with deceleration & freeze in 3D deep space
+   ============================================================ */
+function initHyperspaceSystem() {
+  hyperjumpGroup = new THREE.Group();
+  hyperjumpGroup.visible = false;
+  scene.add(hyperjumpGroup);
+
+  var streakCount = 1200;
+  hyperjumpData = [];
+  hyperjumpPos = new Float32Array(streakCount * 6);
+  hyperjumpCol = new Float32Array(streakCount * 6);
+
+  for (var i = 0; i < streakCount; i++) {
+    var rad = 1.2 + Math.random() * 24.0;
+    var ang = Math.random() * Math.PI * 2;
+    var x = Math.cos(ang) * rad;
+    var y = Math.sin(ang) * rad;
+    var z = -50 + Math.random() * 90;
+    var speed = 45 + Math.random() * 45;
+
+    hyperjumpData.push({
+      x: x,
+      y: y,
+      z: z,
+      baseZ: z,
+      speed: speed,
+      rad: rad,
+      ang: ang
+    });
+
+    hyperjumpPos[i * 6]     = x;
+    hyperjumpPos[i * 6 + 1] = y;
+    hyperjumpPos[i * 6 + 2] = z;
+    hyperjumpCol[i * 6]     = 0.12;
+    hyperjumpCol[i * 6 + 1] = 0.75;
+    hyperjumpCol[i * 6 + 2] = 1.00;
+
+    hyperjumpPos[i * 6 + 3] = x;
+    hyperjumpPos[i * 6 + 4] = y;
+    hyperjumpPos[i * 6 + 5] = z;
+    hyperjumpCol[i * 6 + 3] = 1.00;
+    hyperjumpCol[i * 6 + 4] = 1.00;
+    hyperjumpCol[i * 6 + 5] = 1.00;
+  }
+
+  hyperjumpGeo = new THREE.BufferGeometry();
+  hyperjumpGeo.setAttribute('position', new THREE.BufferAttribute(hyperjumpPos, 3));
+  hyperjumpGeo.setAttribute('color', new THREE.BufferAttribute(hyperjumpCol, 3));
+
+  hyperjumpMat = new THREE.LineBasicMaterial({
+    vertexColors: true,
+    transparent: true,
+    opacity: 0.0,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false
+  });
+
+  hyperjumpLines = new THREE.LineSegments(hyperjumpGeo, hyperjumpMat);
+  hyperjumpGroup.add(hyperjumpLines);
+
+  var hjBtn = document.getElementById('hyperjumpBtn');
+  if (hjBtn) {
+    hjBtn.addEventListener('click', function(e) {
+      e.stopPropagation();
+      triggerHyperjump();
+    });
+  }
+}
+
+function triggerHyperjump() {
+  if (isHyperjumpAnimating) return;
+  isHyperjumpAnimating = true;
+
+  gsap.timeline({
+    onComplete: function() {
+      isHyperjumpAnimating = false;
+    }
+  })
+  .to(hyperjumpProgress, {
+    value: 1.0,
+    duration: 1.2,
+    ease: 'power2.in'
+  })
+  .to(hyperjumpProgress, {
+    value: 1.0,
+    duration: 0.8,
+    ease: 'none'
+  })
+  .to(hyperjumpProgress, {
+    value: 0.0,
+    duration: 1.4,
+    ease: 'power3.out'
+  });
 }
 
 /* ============================================================
@@ -1135,56 +1368,73 @@ function animate() {
       starsNear.visible = true;
     }
 
-    // 1. AERODYNAMIC WIND TUNNEL STREAMLINES (ACTIVE ON STEP 1: WASH / AERO DRY)
-    if (aeroSmokeGroup && aeroSmokeMat) {
+    // 1. AERODYNAMIC WIND TUNNEL 3D STREAMLINES (ACTIVE ON STEP 1: WASH / AERO DRY)
+    if (aeroSmokeGroup) {
       var isWashActive = (targetWash > 0.005);
       aeroSmokeGroup.visible = isWashActive;
-      aeroSmokeMat.opacity = targetWash * 0.38;
 
-      if (isWashActive && aeroParticleData && aeroPositions) {
-        var dt = 0.016;
-        for (var i = 0; i < aeroParticleData.length; i++) {
-          var p = aeroParticleData[i];
-          p.t = (p.t + dt * p.speed) % 1.0;
+      if (isWashActive) {
+        if (aeroRibbonMat) aeroRibbonMat.opacity = targetWash * 0.45;
+        if (aeroSmokeMat) aeroSmokeMat.opacity = targetWash * 0.35;
 
-          // Starts gracefully on the hood (z = 0.95), skims windshield, roof, louvers, and wing to z = -2.6
-          var z = 0.95 - p.t * 3.55;
-          var x = p.baseLane + p.lateralOffset;
+        // Update Ribbon Wake Vortices (Laminar streamline curls matching wind tunnel photo)
+        if (aeroRibbonPos && aeroRibbonGeo) {
+          var halfW = 0.016;
+          var rIdx = 0;
+          for (var sIdx = 0; sIdx < AERO_LANE_COUNT; sIdx++) {
+            var isSide = (sIdx >= 8 && sIdx <= 15);
+            for (var seg = 0; seg < AERO_SEGS_PER_LANE; seg++) {
+              var tFrac = seg / (AERO_SEGS_PER_LANE - 1);
+              var rz = 1.35 - tFrac * 4.55;
+              if (rz < -1.55) {
+                var rpt = getStreamlineTrajectory(sIdx, rz, elapsedTime);
+                var rdx0 = isSide ? 0 : -halfW;
+                var rdy0 = isSide ? -halfW : 0;
+                var rdx1 = isSide ? 0 : halfW;
+                var rdy1 = isSide ? halfW : 0;
 
-          // Delicate vortex dissipation behind rear wing (z < -1.55)
-          if (z < -1.55) {
-            var wakeDist = -1.55 - z;
-            x += Math.sign(p.baseLane || (i % 2 === 0 ? 1 : -1)) * (wakeDist * 0.08);
-            var vortex = Math.sin(p.t * 14 + elapsedTime * 4.5 + p.phase) * (wakeDist * 0.04);
-            x += vortex;
+                aeroRibbonPos[rIdx * 3]     = rpt.x + rdx0;
+                aeroRibbonPos[rIdx * 3 + 1] = rpt.y + rdy0;
+                aeroRibbonPos[rIdx * 3 + 2] = rpt.z;
+
+                aeroRibbonPos[(rIdx + 1) * 3]     = rpt.x + rdx1;
+                aeroRibbonPos[(rIdx + 1) * 3 + 1] = rpt.y + rdy1;
+                aeroRibbonPos[(rIdx + 1) * 3 + 2] = rpt.z;
+              }
+              rIdx += 2;
+            }
           }
-
-          var surfaceY = getF40SurfaceY(x, z);
-          var wakeTurbulence = (z < -1.55) ? Math.cos(p.t * 14 + elapsedTime * 4.5 + p.phase) * ((-1.55 - z) * 0.035) : 0;
-          var y = surfaceY + p.hover + wakeTurbulence;
-
-          aeroPositions[i * 3]     = x;
-          aeroPositions[i * 3 + 1] = y;
-          aeroPositions[i * 3 + 2] = z;
-
-          // Pure aerodynamic laser smoke visibility:
-          // Smooth fade-in on front hood (t < 0.15) — no wall in front of car!
-          // Silky streamlined ribbon along the body (0.15 <= t <= 0.72)
-          // Gradual dissipation into wake behind wing (t > 0.72)
-          var alpha = 1.0;
-          if (p.t < 0.15) {
-            alpha = p.t / 0.15;
-          } else if (p.t > 0.72) {
-            alpha = Math.max(0, 1.0 - (p.t - 0.72) / 0.28);
+          if (aeroRibbonGeo.attributes.position) {
+            aeroRibbonGeo.attributes.position.needsUpdate = true;
           }
-
-          var b = alpha * targetWash;
-          aeroColors[i * 3]     = b * 0.92;
-          aeroColors[i * 3 + 1] = b * 0.95;
-          aeroColors[i * 3 + 2] = b * 1.00;
         }
 
-        if (aeroGeo && aeroGeo.attributes) {
+        // Update Volumetric Smoke Particles along all 24 lanes
+        if (aeroParticleData && aeroPositions && aeroGeo) {
+          var dtSmoke = 0.016;
+          for (var pi = 0; pi < aeroParticleData.length; pi++) {
+            var ap = aeroParticleData[pi];
+            ap.t = (ap.t + dtSmoke * ap.speed) % 1.0;
+            var pz = 1.35 - ap.t * 4.55;
+            var ppt = getStreamlineTrajectory(ap.lane, pz, elapsedTime);
+
+            aeroPositions[pi * 3]     = ppt.x;
+            aeroPositions[pi * 3 + 1] = ppt.y;
+            aeroPositions[pi * 3 + 2] = ppt.z;
+
+            var pAlpha = 1.0;
+            if (ap.t < 0.12) {
+              pAlpha = ap.t / 0.12;
+            } else if (ap.t > 0.75) {
+              pAlpha = Math.max(0, 1.0 - (ap.t - 0.75) / 0.25);
+            }
+
+            var pb = pAlpha * targetWash;
+            aeroColors[pi * 3]     = pb * 0.92;
+            aeroColors[pi * 3 + 1] = pb * 0.95;
+            aeroColors[pi * 3 + 2] = pb * 1.00;
+          }
+
           if (aeroGeo.attributes.position) aeroGeo.attributes.position.needsUpdate = true;
           if (aeroGeo.attributes.color) aeroGeo.attributes.color.needsUpdate = true;
         }
@@ -1220,6 +1470,53 @@ function animate() {
     if (rearLightMat && rearLightMat.emissive) {
       rearLightMat.emissive.setRGB(targetLights * 1.0, targetLights * 0.02, 0);
       rearLightMat.emissiveIntensity = targetLights * 12.0;
+    }
+
+    // 4. STAR WARS HYPERSPACE JUMP & FROZEN DEEP SPACE (ACTIVE ON STEP 4 & TRANSITION)
+    var isWarpTransition = (raw >= 3.1 && raw <= 4.0);
+    var scrollWarp = 0;
+    if (isWarpTransition) {
+      if (raw < 3.82) {
+        scrollWarp = (raw - 3.1) / 0.72;
+      } else {
+        // Exit from hyperspace: rapid deceleration ease-out to zero at 4.0
+        scrollWarp = Math.max(0, 1.0 - (raw - 3.82) / 0.18);
+      }
+    }
+
+    var currentWarp = Math.max(scrollWarp, hyperjumpProgress.value);
+    if (hyperjumpGroup && hyperjumpMat && hyperjumpPos && hyperjumpData) {
+      var showHyper = (currentWarp > 0.001 || isHyperjumpAnimating || raw >= 3.8);
+      hyperjumpGroup.visible = showHyper;
+      hyperjumpMat.opacity = Math.min(1.0, currentWarp * 1.25);
+
+      var dtWarp = 0.016;
+      var warpSpeedMult = currentWarp * 3.8;
+      var streakLen = currentWarp * 16.0;
+
+      for (var hi = 0; hi < hyperjumpData.length; hi++) {
+        var hd = hyperjumpData[hi];
+
+        // Move only while warping; when warp reaches 0, stars COMPLETELY FREEZE in 3D space!
+        if (currentWarp > 0.001) {
+          hd.z += hd.speed * warpSpeedMult * dtWarp;
+          if (hd.z > 25.0) {
+            hd.z = -55.0 - Math.random() * 20.0;
+          }
+        }
+
+        hyperjumpPos[hi * 6]     = hd.x;
+        hyperjumpPos[hi * 6 + 1] = hd.y;
+        hyperjumpPos[hi * 6 + 2] = hd.z;
+
+        hyperjumpPos[hi * 6 + 3] = hd.x;
+        hyperjumpPos[hi * 6 + 4] = hd.y;
+        hyperjumpPos[hi * 6 + 5] = hd.z + streakLen;
+      }
+
+      if (hyperjumpGeo && hyperjumpGeo.attributes && hyperjumpGeo.attributes.position) {
+        hyperjumpGeo.attributes.position.needsUpdate = true;
+      }
     }
   }
 

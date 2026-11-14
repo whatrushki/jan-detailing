@@ -351,6 +351,52 @@ html, body {
   font-size: 10px;
 }
 
+.hyperjump-wrap {
+  margin-top: 20px;
+  display: flex;
+  justify-content: center;
+}
+
+.hyperjump-btn {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 2.5px;
+  color: #70d6ff;
+  background: rgba(10, 25, 45, 0.65);
+  border: 1px solid rgba(112, 214, 255, 0.45);
+  padding: 12px 28px;
+  cursor: pointer;
+  text-transform: uppercase;
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow: 0 0 16px rgba(112, 214, 255, 0.2), inset 0 0 12px rgba(112, 214, 255, 0.08);
+  border-radius: 2px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  pointer-events: auto !important;
+}
+
+.hyperjump-btn:hover {
+  background: rgba(112, 214, 255, 0.2);
+  border-color: #70d6ff;
+  color: #ffffff;
+  box-shadow: 0 0 28px rgba(112, 214, 255, 0.6), inset 0 0 18px rgba(112, 214, 255, 0.25);
+  transform: translateY(-2px) scale(1.02);
+}
+
+.hyperjump-btn:active {
+  transform: translateY(0px) scale(0.98);
+}
+
+.btn-glitch-icon {
+  font-size: 13px;
+  color: #70d6ff;
+  filter: drop-shadow(0 0 6px #70d6ff);
+}
+
 /* -------------------------------------------------------------
    BUTTONS
    ------------------------------------------------------------- */
