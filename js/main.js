@@ -900,13 +900,14 @@ function animate() {
   requestAnimationFrame(animate);
 
   var elapsedTime = clock.getElapsedTime();
+  var isDesktop = window.innerWidth > 900;
+  var raw = (stepProgress && typeof stepProgress.value === 'number') ? stepProgress.value : 0;
 
   // Smooth mouse damping
   mouse.x += (mouse.targetX - mouse.x) * 0.055;
   mouse.y += (mouse.targetY - mouse.y) * 0.055;
 
   if (!isIntroActive && carGroup) {
-    var raw = (stepProgress && typeof stepProgress.value === 'number') ? stepProgress.value : 0;
     var baseStep = Math.floor(raw);
     var nextStep = Math.min(baseStep + 1, 4);
     var stepFrac = raw - baseStep;
@@ -986,7 +987,7 @@ function animate() {
 
     // Earth ONLY on Step 0 (Hero): smoothly fades out during the transition to Wash
     var earthAlpha = Math.max(0, 1.0 - raw * 1.5);
-    if (earthMesh) {
+    if (earthMesh && earthMesh.material) {
       earthMesh.material.opacity = earthAlpha;
     }
     if (orbitalEarthGroup) {
@@ -997,17 +998,17 @@ function animate() {
     // Volumetric 3D Cosmos: dynamic layered depth parallax and living celestial twinkle
     var twinkle1 = (Math.sin(elapsedTime * 2.8) * 0.5 + 0.5);
     var twinkle2 = (Math.cos(elapsedTime * 3.4) * 0.5 + 0.5);
-    if (starsDeep) {
+    if (starsDeep && starsDeep.material) {
       starsDeep.position.z = raw * 15;
       starsDeep.material.opacity = 0.70 + twinkle1 * 0.28;
       starsDeep.visible = true;
     }
-    if (starsMid) {
+    if (starsMid && starsMid.material) {
       starsMid.position.z = raw * 35;
       starsMid.material.opacity = 0.72 + twinkle2 * 0.26;
       starsMid.visible = true;
     }
-    if (starsNear) {
+    if (starsNear && starsNear.material) {
       starsNear.position.z = raw * 75;
       starsNear.material.opacity = 0.75 + ((twinkle1 + twinkle2) * 0.5) * 0.24;
       starsNear.visible = true;
@@ -1015,7 +1016,7 @@ function animate() {
 
     // 1. CASCADING WATER STREAMS & CLEANROOM LIGHT (ACTIVE ON STEP 1: WASH)
     // 100% GPU-native transform: zero CPU looping and zero buffer uploads
-    if (waterStreams) {
+    if (waterStreams && waterStreams.material) {
       var isWashActive = (targetWash > 0.005);
       waterStreams.visible = isWashActive;
       waterStreams.material.opacity = targetWash * 0.85;
@@ -1023,14 +1024,14 @@ function animate() {
         waterStreams.position.y = -((elapsedTime * 4.8) % 0.85);
       }
     }
-    if (washBayLight) {
+    if (washBayLight && washBayLight.target) {
       washBayLight.intensity = targetWash * 6.5;
       washBayLight.position.set(currentCarPos.x, currentCarPos.y + 5.5, currentCarPos.z);
       washBayLight.target.position.set(currentCarPos.x, currentCarPos.y, currentCarPos.z);
     }
 
     // 2. POLISHING GLIDING INSPECTION SPOTLIGHT (SMOOTH FADE IN/OUT ACROSS TRANSITIONS)
-    if (polishSpotLight) {
+    if (polishSpotLight && polishSpotLight.target) {
       var polishFactor = Math.max(0, 1.0 - Math.abs(raw - 2.0));
       polishSpotLight.intensity = polishFactor * (14.0 + Math.sin(elapsedTime * 2.5) * 4.0) * sFade;
       polishSpotLight.position.set(
@@ -1042,15 +1043,15 @@ function animate() {
     }
 
     // 3. HEADLIGHT IGNITION ON CAR (ACTIVE ON STEP 4: STUDIO)
-    if (headlightMat) {
+    if (headlightMat && headlightMat.emissive) {
       headlightMat.emissive.setRGB(targetLights, targetLights, targetLights);
       headlightMat.emissiveIntensity = targetLights * 28.0;
     }
-    if (frontLensMat) {
+    if (frontLensMat && frontLensMat.emissive) {
       frontLensMat.emissive.setRGB(targetLights, targetLights, targetLights);
       frontLensMat.emissiveIntensity = targetLights * 22.0;
     }
-    if (rearLightMat) {
+    if (rearLightMat && rearLightMat.emissive) {
       rearLightMat.emissive.setRGB(targetLights * 1.0, targetLights * 0.02, 0);
       rearLightMat.emissiveIntensity = targetLights * 12.0;
     }
