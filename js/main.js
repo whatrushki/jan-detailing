@@ -37,6 +37,10 @@ var currentLookAt = new THREE.Vector3(-0.35, 0.15, 0);
 var currentFov = { value: 35 };
 var currentStudioFade = { value: 0 }; // 0 = cosmos, 1 = studio
 
+var _vCarPos = new THREE.Vector3();
+var _vCamPos = new THREE.Vector3();
+var _vLookAt = new THREE.Vector3();
+
 window.__state = { carLoaded: false, earthLoaded: false };
 
 // DOM Elements
@@ -892,10 +896,6 @@ function onWindowResize() {
 /* ============================================================
    CONTINUOUS RENDER & LERP ANIMATION LOOP
    ============================================================ */
-var _vCarPos = new THREE.Vector3();
-var _vCamPos = new THREE.Vector3();
-var _vLookAt = new THREE.Vector3();
-
 function animate() {
   requestAnimationFrame(animate);
 
@@ -906,7 +906,7 @@ function animate() {
   mouse.y += (mouse.targetY - mouse.y) * 0.055;
 
   if (!isIntroActive && carGroup) {
-    var raw = stepProgress.value;
+    var raw = (stepProgress && typeof stepProgress.value === 'number') ? stepProgress.value : 0;
     var baseStep = Math.floor(raw);
     var nextStep = Math.min(baseStep + 1, 4);
     var stepFrac = raw - baseStep;
@@ -914,28 +914,30 @@ function animate() {
     var poseA = getStepPose(baseStep);
     var poseB = getStepPose(nextStep);
 
-    // Interpolate pose targets between steps using static vectors (zero GC pressure)
-    _vCarPos.lerpVectors(poseA.carPos, poseB.carPos, stepFrac);
-    _vCamPos.lerpVectors(poseA.camPos, poseB.camPos, stepFrac);
-    _vLookAt.lerpVectors(poseA.lookAt, poseB.lookAt, stepFrac);
-    var targetFovVal = THREE.MathUtils.lerp(poseA.fov, poseB.fov, stepFrac);
+    if (poseA && poseB && poseA.carPos && poseB.carPos) {
+      // Interpolate pose targets between steps using static vectors (zero GC pressure)
+      _vCarPos.lerpVectors(poseA.carPos, poseB.carPos, stepFrac);
+      _vCamPos.lerpVectors(poseA.camPos, poseB.camPos, stepFrac);
+      _vLookAt.lerpVectors(poseA.lookAt, poseB.lookAt, stepFrac);
+      var targetFovVal = THREE.MathUtils.lerp(poseA.fov, poseB.fov, stepFrac);
 
-    var rotProgress = (baseStep === 3) ? (stepFrac * stepFrac * (3 - 2 * stepFrac)) : stepFrac;
-    var targetRotX = THREE.MathUtils.lerp(poseA.carRot.x, poseB.carRot.x, stepFrac);
-    var targetRotY = THREE.MathUtils.lerp(poseA.carRot.y, poseB.carRot.y, rotProgress);
-    var targetRotZ = THREE.MathUtils.lerp(poseA.carRot.z, poseB.carRot.z, stepFrac);
+      var rotProgress = (baseStep === 3) ? (stepFrac * stepFrac * (3 - 2 * stepFrac)) : stepFrac;
+      var targetRotX = THREE.MathUtils.lerp(poseA.carRot.x, poseB.carRot.x, stepFrac);
+      var targetRotY = THREE.MathUtils.lerp(poseA.carRot.y, poseB.carRot.y, rotProgress);
+      var targetRotZ = THREE.MathUtils.lerp(poseA.carRot.z, poseB.carRot.z, stepFrac);
 
-    var targetFade = THREE.MathUtils.lerp(poseA.studioFade, poseB.studioFade, stepFrac);
-    var targetLights = THREE.MathUtils.lerp(poseA.headlights, poseB.headlights, stepFrac);
-    var targetWash = THREE.MathUtils.lerp(poseA.washFade, poseB.washFade, stepFrac);
+      var targetFade = THREE.MathUtils.lerp(poseA.studioFade, poseB.studioFade, stepFrac);
+      var targetLights = THREE.MathUtils.lerp(poseA.headlights, poseB.headlights, stepFrac);
+      var targetWash = THREE.MathUtils.lerp(poseA.washFade, poseB.washFade, stepFrac);
 
-    // Direct exact synchronization with GSAP interpolation (zero phase lag)
-    currentCarPos.copy(_vCarPos);
-    currentCarRot.set(targetRotX, targetRotY, targetRotZ);
-    currentCamPos.copy(_vCamPos);
-    currentLookAt.copy(_vLookAt);
-    currentFov.value = targetFovVal;
-    currentStudioFade.value = targetFade;
+      // Direct exact synchronization with GSAP interpolation (zero phase lag)
+      currentCarPos.copy(_vCarPos);
+      currentCarRot.set(targetRotX, targetRotY, targetRotZ);
+      currentCamPos.copy(_vCamPos);
+      currentLookAt.copy(_vLookAt);
+      currentFov.value = targetFovVal;
+      currentStudioFade.value = targetFade;
+    }
   }
 
   // Continuous unified 3D updates & parallax: zero teleportation or snap
