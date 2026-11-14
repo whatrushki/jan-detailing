@@ -461,6 +461,14 @@ function loadFerrariF40() {
       window.__carModel = carModel;
       window.__state.carLoaded = true;
       console.log('CAR LOADED AT:', performance.now());
+
+      // Pre-warm and compile all WebGL programs up front to guarantee ZERO stutter during transitions
+      try {
+        renderer.compile(scene, camera);
+      } catch (e) {
+        console.warn('Renderer compile notice:', e);
+      }
+
       startIntroSequence();
     },
     undefined,
@@ -496,15 +504,15 @@ function startIntroSequence() {
   try {
     var rest = getStepPose(0);
 
-    // Initial position in deep space
-    currentCarPos.set(rest.carPos.x - 0.3, rest.carPos.y + 0.6, -30);
+    // Initial position in deep space (classic grand approach)
+    currentCarPos.set(rest.carPos.x + 1.2, rest.carPos.y + 4.8, -60);
     currentCarRot.set(
-      rest.carRot.x + 0.6,
-      rest.carRot.y + 1.0,
-      rest.carRot.z - 0.4
+      rest.carRot.x + Math.PI * 2.0,
+      rest.carRot.y + Math.PI * 2.5,
+      rest.carRot.z - Math.PI * 1.4
     );
-    currentCamPos.set(0, 1.3, 11.5);
-    currentLookAt.set(rest.lookAt.x, rest.lookAt.y + 0.35, rest.lookAt.z);
+    currentCamPos.set(0.2, 0.3, 10.0);
+    currentLookAt.set(rest.lookAt.x, rest.lookAt.y, rest.lookAt.z);
     currentFov.value = rest.fov;
     currentStudioFade.value = 0;
 
@@ -532,47 +540,47 @@ function startIntroSequence() {
       }
     });
 
-    // Cinematic swoop: camera flies in smoothly from deep space toward Earth and car
+    // Grand cinematic approach: camera glides in from orbit toward Earth and the car
     introTimeline.to(currentCamPos, {
       x: rest.camPos.x,
       y: rest.camPos.y,
       z: rest.camPos.z,
-      duration: 1.35,
-      ease: 'power2.out'
+      duration: 2.6,
+      ease: 'power3.out'
     }, 0);
 
     introTimeline.to(currentLookAt, {
       x: rest.lookAt.x,
       y: rest.lookAt.y,
       z: rest.lookAt.z,
-      duration: 1.35,
-      ease: 'power2.out'
+      duration: 2.6,
+      ease: 'power3.out'
     }, 0);
 
     introTimeline.to(currentCarPos, {
       x: rest.carPos.x,
       y: rest.carPos.y,
       z: rest.carPos.z,
-      duration: 1.35,
-      ease: 'power2.out'
+      duration: 2.6,
+      ease: 'power3.out'
     }, 0);
 
     introTimeline.to(currentCarRot, {
       x: rest.carRot.x,
       y: rest.carRot.y,
       z: rest.carRot.z,
-      duration: 1.35,
-      ease: 'power2.out'
+      duration: 2.6,
+      ease: 'power3.out'
     }, 0);
 
-    // Concurrently trigger text flicker during the landing glide (no post-snap delay)
+    // Concurrently trigger text flicker during landing
     introTimeline.add(function() {
       if (heroContent) {
         heroContent.classList.remove('hero-hidden');
         heroContent.classList.add('hero-visible');
       }
       triggerFlickerIn(brandOverlay);
-    }, 0.5);
+    }, 1.9);
   } catch (err) {
     console.error('START INTRO ERROR:', err);
   }
@@ -597,24 +605,24 @@ function getStepPose(step) {
         washFade: 0.0
       };
 
-    case 1: // 01 WASH: Detailing bay with cascading water (Raised safely above bottom screen margin)
+    case 1: // 01 WASH: Detailing bay with cascading water (Shifted slightly right as requested)
       return {
-        carPos: new THREE.Vector3(isDesktop ? -1.35 : 0, isDesktop ? 0.65 : 0.90, isDesktop ? 3.1 : 2.4),
+        carPos: new THREE.Vector3(isDesktop ? -0.85 : 0, isDesktop ? 0.65 : 0.90, isDesktop ? 3.1 : 2.4),
         carRot: new THREE.Euler(0.0, 0.62, 0.0),
-        camPos: new THREE.Vector3(-0.1, isDesktop ? 0.72 : 0.95, 6.2),
-        lookAt: new THREE.Vector3(-0.55, isDesktop ? 0.55 : 0.82, 0),
+        camPos: new THREE.Vector3(-0.05, isDesktop ? 0.72 : 0.95, 6.2),
+        lookAt: new THREE.Vector3(-0.35, isDesktop ? 0.55 : 0.82, 0),
         fov: 35,
         studioFade: 1.0,
         headlights: 0.0,
         washFade: 1.0
       };
 
-    case 2: // 02 POLISH: Diagonal stance, closer zoom and raised up to showcase paintwork and flank
+    case 2: // 02 POLISH: Diagonal stance, raised higher and moved slightly left to showcase paintwork
       return {
-        carPos: new THREE.Vector3(isDesktop ? -1.30 : 0, isDesktop ? 0.62 : 0.90, isDesktop ? 3.4 : 2.8),
+        carPos: new THREE.Vector3(isDesktop ? -1.58 : 0, isDesktop ? 0.78 : 0.94, isDesktop ? 3.4 : 2.8),
         carRot: new THREE.Euler(0.0, -0.45, 0.0), // Diagonal flank view, nose away
-        camPos: new THREE.Vector3(-0.12, isDesktop ? 0.66 : 0.90, 4.4),
-        lookAt: new THREE.Vector3(-0.75, isDesktop ? 0.56 : 0.84, 0),
+        camPos: new THREE.Vector3(-0.15, isDesktop ? 0.82 : 0.95, 4.4),
+        lookAt: new THREE.Vector3(-0.85, isDesktop ? 0.70 : 0.88, 0),
         fov: 36,
         studioFade: 1.0,
         headlights: 0.0,
@@ -730,10 +738,13 @@ function goToStep(newStep) {
 
   isStepAnimating = true;
   var gsapInst = window.gsap || gsap;
+  // Slower, smoother, luxury pacing across all steps (and extended for rear turnaround)
+  var animDuration = (newStep === 4 || currentStep === 4) ? 2.1 : 1.7;
+
   gsapInst.to(stepProgress, {
     value: newStep,
-    duration: 1.25,
-    ease: 'power2.out',
+    duration: animDuration,
+    ease: 'power2.inOut',
     onComplete: function() {
       isStepAnimating = false;
     }
@@ -855,6 +866,10 @@ function onWindowResize() {
 /* ============================================================
    CONTINUOUS RENDER & LERP ANIMATION LOOP
    ============================================================ */
+var _vCarPos = new THREE.Vector3();
+var _vCamPos = new THREE.Vector3();
+var _vLookAt = new THREE.Vector3();
+
 function animate() {
   requestAnimationFrame(animate);
 
@@ -873,10 +888,10 @@ function animate() {
     var poseA = getStepPose(baseStep);
     var poseB = getStepPose(nextStep);
 
-    // Interpolate pose targets between steps
-    var targetCarP = new THREE.Vector3().lerpVectors(poseA.carPos, poseB.carPos, stepFrac);
-    var targetCamP = new THREE.Vector3().lerpVectors(poseA.camPos, poseB.camPos, stepFrac);
-    var targetLook = new THREE.Vector3().lerpVectors(poseA.lookAt, poseB.lookAt, stepFrac);
+    // Interpolate pose targets between steps using static vectors (zero GC pressure)
+    _vCarPos.lerpVectors(poseA.carPos, poseB.carPos, stepFrac);
+    _vCamPos.lerpVectors(poseA.camPos, poseB.camPos, stepFrac);
+    _vLookAt.lerpVectors(poseA.lookAt, poseB.lookAt, stepFrac);
     var targetFovVal = THREE.MathUtils.lerp(poseA.fov, poseB.fov, stepFrac);
 
     var rotProgress = (baseStep === 3) ? (stepFrac * stepFrac * (3 - 2 * stepFrac)) : stepFrac;
@@ -889,10 +904,10 @@ function animate() {
     var targetWash = THREE.MathUtils.lerp(poseA.washFade, poseB.washFade, stepFrac);
 
     // Direct exact synchronization with GSAP interpolation (zero phase lag)
-    currentCarPos.copy(targetCarP);
+    currentCarPos.copy(_vCarPos);
     currentCarRot.set(targetRotX, targetRotY, targetRotZ);
-    currentCamPos.copy(targetCamP);
-    currentLookAt.copy(targetLook);
+    currentCamPos.copy(_vCamPos);
+    currentLookAt.copy(_vLookAt);
     currentFov.value = targetFovVal;
     currentStudioFade.value = targetFade;
   }
@@ -955,56 +970,47 @@ function animate() {
       studioAmbientLight.intensity = sFade * 0.55;
     }
 
-    // Breathtaking Orbital Horizon: Earth stays majestically visible behind and below the car
-    if (orbitalEarthGroup) {
-      orbitalEarthGroup.visible = true;
-      orbitalEarthGroup.position.y = -2.4 - Math.min(raw, 1.0) * 1.6;
-      orbitalEarthGroup.position.z = -22.0 - Math.min(raw, 1.0) * 3.5;
-      orbitalEarthGroup.rotation.y = elapsedTime * 0.015;
-    }
+    // Earth ONLY on Step 0 (Hero): smoothly fades out during the transition to Wash
+    var earthAlpha = Math.max(0, 1.0 - raw * 1.5);
     if (earthMesh) {
-      earthMesh.material.opacity = 0.95;
-      earthMesh.visible = true;
+      earthMesh.material.opacity = earthAlpha;
+    }
+    if (orbitalEarthGroup) {
+      orbitalEarthGroup.visible = (raw < 0.98);
+      orbitalEarthGroup.position.y = -2.4 - raw * 6.0;
     }
 
-    // Stars remain subtly alive across all steps
+    // Volumetric 3D Cosmos: dynamic layered depth parallax on every scroll swipe
     if (starsDeep) {
+      starsDeep.position.z = raw * 15;
       starsDeep.material.opacity = 0.85;
       starsDeep.visible = true;
     }
     if (starsMid) {
+      starsMid.position.z = raw * 35;
       starsMid.material.opacity = 0.92;
       starsMid.visible = true;
     }
     if (starsNear) {
+      starsNear.position.z = raw * 75;
       starsNear.material.opacity = 0.98;
       starsNear.visible = true;
     }
 
     // 1. CASCADING WATER STREAMS & CLEANROOM LIGHT (ACTIVE ON STEP 1: WASH)
+    // 100% GPU-native transform: zero CPU looping and zero buffer uploads
     if (waterStreams) {
+      var isWashActive = (targetWash > 0.005);
+      waterStreams.visible = isWashActive;
       waterStreams.material.opacity = targetWash * 0.85;
-      if (targetWash > 0.01) {
-        var pos = waterStreams.geometry.attributes.position.array;
-        var sCount = pos.length / 6;
-        for (var si = 0; si < sCount; si++) {
-          var vel = waterVelArr[si];
-          pos[si * 6 + 1] -= vel;
-          pos[si * 6 + 4] -= vel;
-
-          if (pos[si * 6 + 4] < 0.02) {
-            pos[si * 6 + 1] = 3.6;
-            pos[si * 6 + 4] = 3.35;
-          }
-        }
-        waterStreams.geometry.attributes.position.needsUpdate = true;
+      if (isWashActive) {
+        waterStreams.position.y = -((elapsedTime * 4.8) % 0.85);
       }
     }
     if (washBayLight) {
       washBayLight.intensity = targetWash * 6.5;
       washBayLight.position.set(currentCarPos.x, currentCarPos.y + 5.5, currentCarPos.z);
       washBayLight.target.position.set(currentCarPos.x, currentCarPos.y, currentCarPos.z);
-      washBayLight.target.updateMatrixWorld();
     }
 
     // 2. POLISHING GLIDING INSPECTION SPOTLIGHT (SMOOTH FADE IN/OUT ACROSS TRANSITIONS)
@@ -1017,7 +1023,6 @@ function animate() {
         currentCarPos.z + 1.2
       );
       polishSpotLight.target.position.set(currentCarPos.x - 0.4, currentCarPos.y + 0.2, currentCarPos.z);
-      polishSpotLight.target.updateMatrixWorld();
     }
 
     // 3. HEADLIGHT IGNITION ON CAR (ACTIVE ON STEP 4: STUDIO)
