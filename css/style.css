@@ -480,12 +480,12 @@ body::after {
     font-size: 10px !important;
   }
 
-  /* Services Mobile (Crisp bottom text dock with 100% readability) */
+  /* Services Mobile (Left-aligned editorial text dock with 100% readability) */
   .services-overlay {
     justify-content: center !important;
     align-items: flex-end !important;
-    padding: 0 20px 36px 20px !important;
-    background: linear-gradient(to top, rgba(0, 0, 0, 0.88) 0%, rgba(0, 0, 0, 0.45) 40%, transparent 68%);
+    padding: 0 24px 38px 24px !important;
+    background: linear-gradient(to top, rgba(0, 0, 0, 0.90) 0%, rgba(0, 0, 0, 0.48) 42%, transparent 70%);
   }
 
   .services-minimal {
@@ -495,8 +495,8 @@ body::after {
     margin: 0 auto !important;
     display: flex !important;
     flex-direction: column !important;
-    align-items: center !important;
-    text-align: center !important;
+    align-items: flex-start !important;
+    text-align: left !important;
   }
 
   .service-slide {
@@ -504,7 +504,7 @@ body::after {
     top: auto !important;
     left: auto !important;
     transform: none !important;
-    text-align: center !important;
+    text-align: left !important;
     width: 100% !important;
     display: none !important;
   }
@@ -512,17 +512,17 @@ body::after {
   .service-slide.current {
     display: flex !important;
     flex-direction: column !important;
-    align-items: center !important;
+    align-items: flex-start !important;
   }
 
   .service-num {
-    text-align: center !important;
+    text-align: left !important;
     margin-bottom: 10px !important;
   }
 
   .service-title {
     font-size: 24px !important;
-    text-align: center !important;
+    text-align: left !important;
     margin-bottom: 12px !important;
   }
 
@@ -530,12 +530,12 @@ body::after {
     font-size: 12.5px !important;
     line-height: 1.6 !important;
     margin-bottom: 18px !important;
-    text-align: center !important;
+    text-align: left !important;
   }
 
   .service-meta {
-    justify-content: center !important;
-    gap: 20px !important;
+    justify-content: flex-start !important;
+    gap: 22px !important;
     width: 100% !important;
   }
 

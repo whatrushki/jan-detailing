@@ -581,10 +581,10 @@ function getStepPose(step) {
         washFade: 0.0
       };
 
-    case 1: // 01 WASH: Detailing bay with full-width cascading water (Scaled slightly smaller and lowered on mobile)
+    case 1: // 01 WASH: Detailing bay with full-width water (Car angled more towards viewer)
       return {
         carPos: new THREE.Vector3(isDesktop ? -1.35 : -0.65, isDesktop ? 0.78 : 0.96, isDesktop ? 3.1 : 2.2),
-        carRot: new THREE.Euler(0.0, 0.62, 0.0),
+        carRot: new THREE.Euler(0.0, 0.28, 0.0), // Turned more towards viewer
         camPos: new THREE.Vector3(isDesktop ? -0.10 : 0, isDesktop ? 0.82 : 0.95, isDesktop ? 6.2 : 7.1),
         lookAt: new THREE.Vector3(isDesktop ? -0.55 : -0.30, isDesktop ? 0.65 : 0.50, 0),
         fov: isDesktop ? 35 : 37,
@@ -593,12 +593,12 @@ function getStepPose(step) {
         washFade: 1.0
       };
 
-    case 2: // 02 POLISH: Diagonal stance, lowered and moved further left on mobile
+    case 2: // 02 POLISH: Diagonal stance, shifted further left to clear text space
       return {
-        carPos: new THREE.Vector3(isDesktop ? -1.65 : -1.25, isDesktop ? 1.10 : 1.05, isDesktop ? 3.2 : 2.1),
+        carPos: new THREE.Vector3(isDesktop ? -2.10 : -1.65, isDesktop ? 1.10 : 1.05, isDesktop ? 3.2 : 2.1),
         carRot: new THREE.Euler(0.0, -0.45, 0.0), // Diagonal flank view, nose away
         camPos: new THREE.Vector3(isDesktop ? -0.15 : -0.12, isDesktop ? 1.12 : 1.02, 4.85),
-        lookAt: new THREE.Vector3(isDesktop ? -0.95 : -0.75, isDesktop ? 0.98 : 0.68, 0),
+        lookAt: new THREE.Vector3(isDesktop ? -1.20 : -0.95, isDesktop ? 0.98 : 0.68, 0),
         fov: 37,
         studioFade: 1.0,
         headlights: 0.0,
@@ -617,14 +617,14 @@ function getStepPose(step) {
         washFade: 0.0
       };
 
-    case 4: // 04 STUDIO & LOCATION: Strictly 180° REAR view, scaled smaller and lowered on mobile
+    case 4: // 04 STUDIO & LOCATION: Strictly 180° REAR view, scaled smaller and lowered right above text
     default:
       return {
-        carPos: new THREE.Vector3(0, isDesktop ? 0.78 : 0.98, isDesktop ? 2.2 : 1.85),
+        carPos: new THREE.Vector3(0, isDesktop ? 0.55 : 0.62, isDesktop ? 2.0 : 1.8),
         carRot: new THREE.Euler(0.0, Math.PI, 0.0), // Exact 180° - strictly and symmetrically rear-facing
-        camPos: new THREE.Vector3(0, isDesktop ? 0.80 : 0.98, isDesktop ? 6.2 : 7.2),
-        lookAt: new THREE.Vector3(0, isDesktop ? 0.38 : 0.52, 0),
-        fov: isDesktop ? 34 : 36,
+        camPos: new THREE.Vector3(0, isDesktop ? 0.60 : 0.70, isDesktop ? 6.8 : 7.8),
+        lookAt: new THREE.Vector3(0, isDesktop ? 0.25 : 0.32, 0),
+        fov: isDesktop ? 34 : 37,
         studioFade: 1.0,
         headlights: 1.0,
         washFade: 0.0
