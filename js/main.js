@@ -306,14 +306,14 @@ function createContactShadowTexture() {
    MINIMALIST STUDIO ENVIRONMENT
    ============================================================ */
 function initStudioEnvironment() {
-  // 1. Matte-Mirror Reflective Floor with Radial Falloff (Zero Blue, Zero Harsh Horizon)
+  // 1. Sleek Smoked Glass Orbital Platform (Reflective, semi-translucent, reveals Earth below)
   var floorGeo = new THREE.PlaneGeometry(60, 60);
   var floorMat = new THREE.MeshStandardMaterial({
     map: createStudioFloorTexture(),
     alphaMap: createFloorAlphaMap(),
-    color: 0x080808,
-    roughness: 0.22,
-    metalness: 0.75,
+    color: 0x07090c,
+    roughness: 0.14,
+    metalness: 0.88,
     transparent: true,
     opacity: 0.0
   });
@@ -503,8 +503,8 @@ function startIntroSequence() {
       rest.carRot.y + 1.0,
       rest.carRot.z - 0.4
     );
-    currentCamPos.copy(rest.camPos);
-    currentLookAt.copy(rest.lookAt);
+    currentCamPos.set(0, 1.3, 11.5);
+    currentLookAt.set(rest.lookAt.x, rest.lookAt.y + 0.35, rest.lookAt.z);
     currentFov.value = rest.fov;
     currentStudioFade.value = 0;
 
@@ -527,15 +527,33 @@ function startIntroSequence() {
         window.__isIntroActive = false;
         currentCarPos.copy(rest.carPos);
         currentCarRot.copy(rest.carRot);
+        currentCamPos.copy(rest.camPos);
+        currentLookAt.copy(rest.lookAt);
       }
     });
 
-    // Fast, responsive 1.1s glide into place with zero phase mismatch
+    // Cinematic swoop: camera flies in smoothly from deep space toward Earth and car
+    introTimeline.to(currentCamPos, {
+      x: rest.camPos.x,
+      y: rest.camPos.y,
+      z: rest.camPos.z,
+      duration: 1.35,
+      ease: 'power2.out'
+    }, 0);
+
+    introTimeline.to(currentLookAt, {
+      x: rest.lookAt.x,
+      y: rest.lookAt.y,
+      z: rest.lookAt.z,
+      duration: 1.35,
+      ease: 'power2.out'
+    }, 0);
+
     introTimeline.to(currentCarPos, {
       x: rest.carPos.x,
       y: rest.carPos.y,
       z: rest.carPos.z,
-      duration: 1.1,
+      duration: 1.35,
       ease: 'power2.out'
     }, 0);
 
@@ -543,7 +561,7 @@ function startIntroSequence() {
       x: rest.carRot.x,
       y: rest.carRot.y,
       z: rest.carRot.z,
-      duration: 1.1,
+      duration: 1.35,
       ease: 'power2.out'
     }, 0);
 
@@ -579,49 +597,49 @@ function getStepPose(step) {
         washFade: 0.0
       };
 
-    case 1: // 01 WASH: Detailing bay with cascading water (Raised up above floor edge)
+    case 1: // 01 WASH: Detailing bay with cascading water (Raised safely above bottom screen margin)
       return {
-        carPos: new THREE.Vector3(isDesktop ? -1.35 : 0, isDesktop ? 0.32 : 0.65, isDesktop ? 3.1 : 2.4),
+        carPos: new THREE.Vector3(isDesktop ? -1.35 : 0, isDesktop ? 0.65 : 0.90, isDesktop ? 3.1 : 2.4),
         carRot: new THREE.Euler(0.0, 0.62, 0.0),
-        camPos: new THREE.Vector3(-0.1, 0.58, 6.2),
-        lookAt: new THREE.Vector3(-0.55, 0.38, 0),
+        camPos: new THREE.Vector3(-0.1, isDesktop ? 0.72 : 0.95, 6.2),
+        lookAt: new THREE.Vector3(-0.55, isDesktop ? 0.55 : 0.82, 0),
         fov: 35,
         studioFade: 1.0,
         headlights: 0.0,
         washFade: 1.0
       };
 
-    case 2: // 02 POLISH: Diagonal stance, nose turned away from camera, moved slightly left and raised
+    case 2: // 02 POLISH: Diagonal stance, closer zoom and raised up to showcase paintwork and flank
       return {
-        carPos: new THREE.Vector3(isDesktop ? -1.55 : 0, isDesktop ? 0.22 : 0.65, isDesktop ? 3.1 : 2.5),
+        carPos: new THREE.Vector3(isDesktop ? -1.30 : 0, isDesktop ? 0.62 : 0.90, isDesktop ? 3.4 : 2.8),
         carRot: new THREE.Euler(0.0, -0.45, 0.0), // Diagonal flank view, nose away
-        camPos: new THREE.Vector3(-0.15, 0.44, 5.2),
-        lookAt: new THREE.Vector3(-0.85, 0.30, 0),
-        fov: 37,
+        camPos: new THREE.Vector3(-0.12, isDesktop ? 0.66 : 0.90, 4.4),
+        lookAt: new THREE.Vector3(-0.75, isDesktop ? 0.56 : 0.84, 0),
+        fov: 36,
         studioFade: 1.0,
         headlights: 0.0,
         washFade: 0.0
       };
 
-    case 3: // 03 INTERIOR: Looking into cabin across console & passenger seat
+    case 3: // 03 INTERIOR: Cabin view across console & passenger seat with refined vertical alignment
       return {
-        carPos: new THREE.Vector3(isDesktop ? -0.65 : 0, 0.08, isDesktop ? 2.2 : 1.8),
+        carPos: new THREE.Vector3(isDesktop ? -0.65 : 0, 0.12, isDesktop ? 2.2 : 1.8),
         carRot: new THREE.Euler(0.0, 0.16, 0.0),
-        camPos: new THREE.Vector3(isDesktop ? -0.84 : -0.22, 0.14, isDesktop ? 2.32 : 1.80),
-        lookAt: new THREE.Vector3(isDesktop ? -0.32 : 0.15, -0.04, isDesktop ? 1.35 : 1.05),
-        fov: 68,
+        camPos: new THREE.Vector3(isDesktop ? -0.84 : -0.22, 0.22, isDesktop ? 2.32 : 1.80),
+        lookAt: new THREE.Vector3(isDesktop ? -0.32 : 0.15, 0.06, isDesktop ? 1.35 : 1.05),
+        fov: 66,
         studioFade: 1.0,
         headlights: 0.0,
         washFade: 0.0
       };
 
-    case 4: // 04 STUDIO & LOCATION: Turned around with REAR facing viewer, elevated above footer
+    case 4: // 04 STUDIO & LOCATION: Sculpted 3/4 rear stance above footer text with glowing taillights
     default:
       return {
-        carPos: new THREE.Vector3(0, isDesktop ? 0.42 : 0.48, isDesktop ? 2.0 : 1.7),
-        carRot: new THREE.Euler(0.04, Math.PI, 0.0), // 180 deg - rear tail/spoiler/diffuser faces viewer
-        camPos: new THREE.Vector3(0, 0.52, 6.2),
-        lookAt: new THREE.Vector3(0, 0.18, 0), // Looking below car center raises car on screen
+        carPos: new THREE.Vector3(0, isDesktop ? 0.58 : 0.62, isDesktop ? 2.2 : 1.85),
+        carRot: new THREE.Euler(0.02, 2.76, 0.0), // Sculpted 3/4 rear view showcasing spoiler, louvers & taillights
+        camPos: new THREE.Vector3(0, 0.60, 6.2),
+        lookAt: new THREE.Vector3(0, 0.26, 0),
         fov: 34,
         studioFade: 1.0,
         headlights: 1.0,
@@ -726,11 +744,11 @@ window.goToStep = goToStep;
 function initScrollAndInteractions() {
   window.addEventListener('resize', onWindowResize);
 
-  // Pointer Parallax
+  // Pointer Parallax (with safe vertical clamp)
   window.addEventListener('pointermove', function(e) {
     if (e.pointerType === 'mouse') {
       mouse.targetX = (e.clientX - windowHalf.x) / windowHalf.x;
-      mouse.targetY = (e.clientY - windowHalf.y) / windowHalf.y;
+      mouse.targetY = Math.max(-0.45, Math.min(0.45, (e.clientY - windowHalf.y) / windowHalf.y));
     }
   });
 
@@ -861,8 +879,9 @@ function animate() {
     var targetLook = new THREE.Vector3().lerpVectors(poseA.lookAt, poseB.lookAt, stepFrac);
     var targetFovVal = THREE.MathUtils.lerp(poseA.fov, poseB.fov, stepFrac);
 
+    var rotProgress = (baseStep === 3) ? (stepFrac * stepFrac * (3 - 2 * stepFrac)) : stepFrac;
     var targetRotX = THREE.MathUtils.lerp(poseA.carRot.x, poseB.carRot.x, stepFrac);
-    var targetRotY = THREE.MathUtils.lerp(poseA.carRot.y, poseB.carRot.y, stepFrac);
+    var targetRotY = THREE.MathUtils.lerp(poseA.carRot.y, poseB.carRot.y, rotProgress);
     var targetRotZ = THREE.MathUtils.lerp(poseA.carRot.z, poseB.carRot.z, stepFrac);
 
     var targetFade = THREE.MathUtils.lerp(poseA.studioFade, poseB.studioFade, stepFrac);
@@ -887,30 +906,22 @@ function animate() {
   camera.fov = currentFov.value;
   camera.updateProjectionMatrix();
 
+  // Vertical mouse sensitivity: gently reduced across all steps, and strictly clamped inside cockpit (step 3) so camera NEVER penetrates roof
+  var vertSens = (raw >= 2.4 && raw <= 3.6) ? 0.018 : 0.045;
   camera.position.set(
-    currentCamPos.x + mouse.x * 0.16,
-    currentCamPos.y - mouse.y * 0.12,
+    currentCamPos.x + mouse.x * 0.14,
+    currentCamPos.y - mouse.y * vertSens,
     currentCamPos.z
   );
   camera.lookAt(
-    currentLookAt.x + mouse.x * 0.04,
-    currentLookAt.y - mouse.y * 0.03,
+    currentLookAt.x + mouse.x * 0.035,
+    currentLookAt.y - mouse.y * (vertSens * 0.35),
     currentLookAt.z
   );
 
   if (!isIntroActive && carGroup) {
     var sFade = currentStudioFade.value;
 
-    // Dynamic Fog Management: Only active when entering studio
-    if (sFade > 0.08) {
-      if (!scene.fog) {
-        scene.fog = new THREE.Fog(0x000000, 12, 28);
-      }
-    } else {
-      scene.fog = null;
-    }
-
-    // Studio Environment & Ground Plane:
     // Ground level sits flush under car tires:
     var studioGroundY = currentCarPos.y - 0.56;
 
@@ -927,7 +938,7 @@ function animate() {
 
     if (floorMesh) {
       floorMesh.position.y = studioGroundY;
-      floorMesh.material.opacity = floorAlpha;
+      floorMesh.material.opacity = floorAlpha * 0.72; // Translucent smoked glass orbital deck!
       floorMesh.visible = (floorAlpha > 0.001);
     }
     if (contactShadow) {
@@ -944,28 +955,30 @@ function animate() {
       studioAmbientLight.intensity = sFade * 0.55;
     }
 
-    // Earth and Space Stars: CLEAN AND TOTAL FADE OUT
-    var earthAlpha = Math.max(0, 1.0 - raw * 2.2);
-    if (earthMesh) {
-      earthMesh.material.opacity = earthAlpha;
-    }
+    // Breathtaking Orbital Horizon: Earth stays majestically visible behind and below the car
     if (orbitalEarthGroup) {
-      orbitalEarthGroup.visible = (raw < 0.5);
-      orbitalEarthGroup.position.y = -2.4 - raw * 8.0;
+      orbitalEarthGroup.visible = true;
+      orbitalEarthGroup.position.y = -2.4 - Math.min(raw, 1.0) * 1.6;
+      orbitalEarthGroup.position.z = -22.0 - Math.min(raw, 1.0) * 3.5;
+      orbitalEarthGroup.rotation.y = elapsedTime * 0.015;
+    }
+    if (earthMesh) {
+      earthMesh.material.opacity = 0.95;
+      earthMesh.visible = true;
     }
 
-    var starAlpha = Math.max(0, 1.0 - raw * 1.8);
+    // Stars remain subtly alive across all steps
     if (starsDeep) {
-      starsDeep.material.opacity = starAlpha * 0.85;
-      starsDeep.visible = (starAlpha > 0.001);
+      starsDeep.material.opacity = 0.85;
+      starsDeep.visible = true;
     }
     if (starsMid) {
-      starsMid.material.opacity = starAlpha * 0.95;
-      starsMid.visible = (starAlpha > 0.001);
+      starsMid.material.opacity = 0.92;
+      starsMid.visible = true;
     }
     if (starsNear) {
-      starsNear.material.opacity = starAlpha * 1.0;
-      starsNear.visible = (starAlpha > 0.001);
+      starsNear.material.opacity = 0.98;
+      starsNear.visible = true;
     }
 
     // 1. CASCADING WATER STREAMS & CLEANROOM LIGHT (ACTIVE ON STEP 1: WASH)
