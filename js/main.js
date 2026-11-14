@@ -20,6 +20,8 @@ var hyperjumpGroup, hyperjumpLines, hyperjumpGeo, hyperjumpMat, hyperjumpPos, hy
 var lightTrailsGroup, lightTrailsMesh, lightTrailsGeo, lightTrailsMat, lightTrailsPos, lightTrailsCol;
 var starsForeground;
 var hyperjumpProgress = { value: 0 };
+var hyperjumpCarSurge = { value: 0 };
+var hyperjumpCamLag = { value: 0 };
 var isHyperjumpAnimating = false;
 var headlightMat, frontLensMat, rearLightMat;
 var carModelTireOffset = -0.56;
@@ -790,35 +792,63 @@ function initHyperspaceSystem() {
   }
 }
 
-function triggerHyperjump() {
+function triggerHyperjump(onDone) {
   if (isHyperjumpAnimating) return;
   isHyperjumpAnimating = true;
 
-  // Cinematic Hyperjump:
-  // 1. Car already turned 180° pointing deep into space
-  // 2. Pre-jump tension / stretch (0.4s)
-  // 3. Peak warp: stars and tail light trails stream forward at lightspeed (1.4s)
-  // 4. Drop out of hyperspace: car surges far ahead, stars decelerate & freeze right in front of viewer, camera catches up (1.5s)
-  gsap.timeline({
+  var tl = gsap.timeline({
     onComplete: function() {
       isHyperjumpAnimating = false;
+      hyperjumpProgress.value = 0;
+      hyperjumpCarSurge.value = 0;
+      hyperjumpCamLag.value = 0;
+      if (typeof onDone === 'function') onDone();
     }
-  })
-  .to(hyperjumpProgress, {
+  });
+
+  // Phase 1: Pre-jump charge & stretch (0 -> 1.0s)
+  // Stars stretch, rear tail light trails ignite and streak backwards
+  tl.to(hyperjumpProgress, {
     value: 1.0,
-    duration: 1.3,
+    duration: 1.0,
     ease: 'power2.in'
-  })
-  .to(hyperjumpProgress, {
+  }, 0);
+
+  // Phase 2: Full Hyperspace Cruise (0.8 -> 2.0s)
+  // Car surges forward deep into space (up to -14 units)
+  tl.to(hyperjumpCarSurge, {
     value: 1.0,
-    duration: 0.7,
-    ease: 'none'
-  })
-  .to(hyperjumpProgress, {
+    duration: 1.2,
+    ease: 'power2.inOut'
+  }, 0.8);
+
+  // Camera stays back initially, creating massive distance
+  tl.to(hyperjumpCamLag, {
+    value: 1.0,
+    duration: 1.0,
+    ease: 'power2.in'
+  }, 0.8);
+
+  // Phase 3: Drop out of hyperspace (1.9 -> 3.4s)
+  // Stars rapidly decelerate right in front of the viewer's eyes and FREEZE in 3D space!
+  tl.to(hyperjumpProgress, {
+    value: 0.0,
+    duration: 1.5,
+    ease: 'power3.out'
+  }, 1.9);
+
+  // Phase 4: Camera gently catches up to the car, settling into the final rest pose (2.3 -> 3.9s)
+  tl.to(hyperjumpCarSurge, {
     value: 0.0,
     duration: 1.6,
     ease: 'power3.out'
-  });
+  }, 2.3);
+
+  tl.to(hyperjumpCamLag, {
+    value: 0.0,
+    duration: 1.6,
+    ease: 'power3.out'
+  }, 2.3);
 }
 
 /* ============================================================
@@ -1158,13 +1188,38 @@ function goToStep(newStep) {
   if (newStep < 0 || newStep > 4) return;
   if (newStep === currentStep && !isStepAnimating) return;
 
+  var gsapInst = window.gsap || gsap;
+
+  // Step 4 special cinematic orchestration:
+  // 1. Car turns around 180° into position
+  // 2. The moment it locks at 180°, AUTOMATICALLY launch the Star Wars hyperjump!
+  // 3. Car surges deep into space, stars streak & freeze, camera catches up, and contacts reveal!
+  if (newStep === 4) {
+    targetStep = 4;
+    contactOverlay.classList.remove('active');
+    updateUIStep(4);
+    isStepAnimating = true;
+
+    gsapInst.to(stepProgress, {
+      value: 4.0,
+      duration: 1.8,
+      ease: 'power2.inOut',
+      onComplete: function() {
+        triggerHyperjump(function() {
+          isStepAnimating = false;
+          contactOverlay.classList.add('active');
+          triggerFlickerIn(contactOverlay);
+        });
+      }
+    });
+    return;
+  }
+
   targetStep = newStep;
   updateUIStep(newStep);
 
   isStepAnimating = true;
-  var gsapInst = window.gsap || gsap;
-  // Slower, smoother, luxury pacing across all steps (and extended for rear turnaround)
-  var animDuration = (newStep === 4 || currentStep === 4) ? 2.1 : 1.7;
+  var animDuration = (currentStep === 4) ? 2.0 : 1.7;
 
   gsapInst.to(stepProgress, {
     value: newStep,
@@ -1549,15 +1604,23 @@ function animate() {
 
     var currentWarp = Math.max(scrollWarp, hyperjumpProgress.value);
 
-    // During manual button hyperjump: surge car and lag camera
-    if (hyperjumpProgress.value > 0) {
-      carForwardSurge = Math.sin(hyperjumpProgress.value * Math.PI) * 3.4;
+    // Dynamic surge forward deep into the cosmos during hyperjump & camera lag
+    var surgeAmount = hyperjumpCarSurge.value * 16.0;
+    var camLagAmount = hyperjumpCamLag.value * 3.5;
+
+    if (carGroup && (surgeAmount > 0.001 || carForwardSurge > 0.001)) {
+      var totalSurge = Math.max(surgeAmount, carForwardSurge * 1.8);
+      carGroup.position.z = currentCarPos.z - totalSurge;
     }
 
-    // Apply forward surge to car and camera lag
-    if (carGroup && (carForwardSurge > 0.001)) {
-      // In carGroup, moving forward into the distance means along its forward axis (-Z in world, +Z in 180 local)
-      carGroup.position.z = currentCarPos.z - carForwardSurge * 1.8;
+    if (camLagAmount > 0.001) {
+      camera.position.z = currentCamPos.z + camLagAmount;
+    }
+
+    // Dynamic FOV expansion during lightspeed warp
+    if (currentWarp > 0.001) {
+      camera.fov = currentFov.value + currentWarp * 15.0;
+      camera.updateProjectionMatrix();
     }
 
     // 4.1 Update Starfield Hyperdrive Streaks & Deceleration
@@ -1606,17 +1669,17 @@ function animate() {
       lightTrailsMesh.visible = isTrailActive;
 
       if (isTrailActive) {
-        lightTrailsMat.opacity = Math.min(1.0, currentWarp * 1.6);
+        lightTrailsMat.opacity = Math.min(1.0, currentWarp * 1.8);
         var lampOrigins = [
-          { x: -0.523, y: 0.015, z: -1.575, r: 1.00, g: 0.65, b: 0.02 }, // Left Amber
-          { x: -0.397, y: 0.022, z: -1.588, r: 1.00, g: 0.03, b: 0.02 }, // Left Red
-          { x:  0.396, y: 0.022, z: -1.588, r: 1.00, g: 0.03, b: 0.02 }, // Right Red
-          { x:  0.523, y: 0.015, z: -1.575, r: 1.00, g: 0.65, b: 0.02 }  // Right Amber
+          { x: -0.523, y: 0.015, z: -1.575, r: 2.20, g: 1.40, b: 0.05 }, // Left Amber
+          { x: -0.397, y: 0.022, z: -1.588, r: 2.20, g: 0.02, b: 0.01 }, // Left Red
+          { x:  0.396, y: 0.022, z: -1.588, r: 2.20, g: 0.02, b: 0.01 }, // Right Red
+          { x:  0.523, y: 0.015, z: -1.575, r: 2.20, g: 1.40, b: 0.05 }  // Right Amber
         ];
 
         var trailSegCount = 32;
-        var maxTrailDist = currentWarp * 16.5; // Trails stretch backwards up to 16.5 meters
-        var trailWidth = 0.045; // 4.5cm wide luminous laser ribbon
+        var maxTrailDist = currentWarp * 24.0; // Trails stretch backwards up to 24 meters
+        var trailWidth = 0.085; // 8.5cm wide intense luminous laser ribbon
 
         var trVIdx = 0;
         for (var tIdx = 0; tIdx < 4; tIdx++) {
