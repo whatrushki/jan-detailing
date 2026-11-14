@@ -145,10 +145,32 @@ function initCinematicSunlight() {
   scene.add(rimLight);
 }
 
+function createStarTexture() {
+  var canvas = document.createElement('canvas');
+  canvas.width = 64;
+  canvas.height = 64;
+  var ctx = canvas.getContext('2d');
+
+  // Smooth circular luminous celestial falloff (Zero square pixels)
+  var grad = ctx.createRadialGradient(32, 32, 0, 32, 32, 32);
+  grad.addColorStop(0.0, 'rgba(255, 255, 255, 1.0)');
+  grad.addColorStop(0.2, 'rgba(255, 255, 255, 0.9)');
+  grad.addColorStop(0.55, 'rgba(210, 230, 255, 0.35)');
+  grad.addColorStop(1.0, 'rgba(0, 0, 0, 0)');
+
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, 64, 64);
+
+  var tex = new THREE.CanvasTexture(canvas);
+  return tex;
+}
+
 /* ============================================================
-   DEEP COSMOS STARFIELD
+   DEEP COSMOS STARFIELD (CIRCULAR SOFT STARS WITH LIVING TWINKLE)
    ============================================================ */
 function initDeepCosmosWithLayers() {
+  var starTexture = createStarTexture();
+
   function makeStars(count, minR, maxR, size, opacity) {
     var geo = new THREE.BufferGeometry();
     var pos = new Float32Array(count * 3);
@@ -172,18 +194,21 @@ function initDeepCosmosWithLayers() {
     geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
     var mat = new THREE.PointsMaterial({
       size: size,
+      map: starTexture,
       vertexColors: true,
       transparent: true,
       opacity: opacity,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
       sizeAttenuation: true
     });
     mat.fog = false; // Never let fog dim the stars!
     return new THREE.Points(geo, mat);
   }
 
-  starsDeep = makeStars(6000, 900, 2000, 0.75, 0.85);
-  starsMid  = makeStars(2400, 450, 900, 1.1, 0.95);
-  starsNear = makeStars(300, 250, 450, 1.6, 1.0);
+  starsDeep = makeStars(6000, 900, 2000, 1.2, 0.85);
+  starsMid  = makeStars(2400, 450, 900, 1.8, 0.95);
+  starsNear = makeStars(250, 250, 450, 2.4, 0.90);
 
   scene.add(starsDeep);
   scene.add(starsMid);
@@ -605,26 +630,26 @@ function getStepPose(step) {
         washFade: 0.0
       };
 
-    case 3: // 03 INTERIOR: Cabin view, camera brought closer, lower and further left, car lifted slightly
+    case 3: // 03 INTERIOR: Cabin view, camera placed safely inside cabin (Zero windshield clipping)
       return {
-        carPos: new THREE.Vector3(isDesktop ? -0.65 : -0.48, isDesktop ? 0.18 : 0.82, isDesktop ? 2.2 : 1.8),
+        carPos: new THREE.Vector3(isDesktop ? -0.65 : -0.45, isDesktop ? 0.18 : 0.82, isDesktop ? 2.2 : 1.8),
         carRot: new THREE.Euler(0.0, 0.16, 0.0),
-        camPos: new THREE.Vector3(isDesktop ? -1.05 : -0.78, isDesktop ? 0.28 : 0.58, isDesktop ? 2.58 : 2.15),
-        lookAt: new THREE.Vector3(isDesktop ? -0.38 : -0.22, isDesktop ? 0.10 : 0.32, isDesktop ? 1.25 : 1.05),
+        camPos: new THREE.Vector3(isDesktop ? -0.80 : -0.55, isDesktop ? 0.22 : 0.55, isDesktop ? 2.25 : 2.05),
+        lookAt: new THREE.Vector3(isDesktop ? -0.32 : -0.15, isDesktop ? 0.08 : 0.30, isDesktop ? 1.25 : 1.05),
         fov: isDesktop ? 66 : 70,
         studioFade: 1.0,
         headlights: 0.0,
         washFade: 0.0
       };
 
-    case 4: // 04 STUDIO & LOCATION: Strictly 180° REAR view, scaled smaller and lowered right above text
+    case 4: // 04 STUDIO & LOCATION: Strictly 180° REAR view, scaled down for 360px phones and lowered right above text
     default:
       return {
-        carPos: new THREE.Vector3(0, isDesktop ? 0.55 : 0.62, isDesktop ? 2.0 : 1.8),
+        carPos: new THREE.Vector3(0, isDesktop ? 0.55 : 0.38, isDesktop ? 2.0 : 1.85),
         carRot: new THREE.Euler(0.0, Math.PI, 0.0), // Exact 180° - strictly and symmetrically rear-facing
-        camPos: new THREE.Vector3(0, isDesktop ? 0.60 : 0.70, isDesktop ? 6.8 : 7.8),
-        lookAt: new THREE.Vector3(0, isDesktop ? 0.25 : 0.32, 0),
-        fov: isDesktop ? 34 : 37,
+        camPos: new THREE.Vector3(0, isDesktop ? 0.60 : 0.42, isDesktop ? 6.8 : 8.8),
+        lookAt: new THREE.Vector3(0, isDesktop ? 0.25 : 0.18, 0),
+        fov: isDesktop ? 34 : 36,
         studioFade: 1.0,
         headlights: 1.0,
         washFade: 0.0
@@ -820,12 +845,17 @@ function initScrollAndInteractions() {
 
   // Navigation Click Handlers (Buttons, HUD dots)
   document.querySelectorAll('[data-target]').forEach(function(btn) {
-    btn.addEventListener('click', function(e) {
+    var triggerNav = function(e) {
       e.preventDefault();
-      if (isIntroActive || isStepAnimating) return;
+      e.stopPropagation();
       var target = parseInt(btn.getAttribute('data-target'), 10);
+      if (isIntroActive) {
+        skipIntroIfActive();
+      }
       goToStep(target);
-    });
+    };
+    btn.addEventListener('click', triggerNav);
+    btn.addEventListener('touchend', triggerNav);
   });
 }
 
@@ -897,15 +927,18 @@ function animate() {
   camera.fov = currentFov.value;
   camera.updateProjectionMatrix();
 
-  // Vertical mouse sensitivity: gently reduced across all steps, and strictly clamped inside cockpit (step 3) so camera NEVER penetrates roof
-  var vertSens = (raw >= 2.4 && raw <= 3.6) ? 0.018 : 0.045;
+  // Camera parallax sensitivity: strictly damped in cockpit (Step 3) so camera NEVER touches windshield or A-pillar
+  var isInterior = (raw >= 2.4 && raw <= 3.6);
+  var horizSens = isInterior ? 0.025 : 0.14;
+  var vertSens  = isInterior ? 0.015 : 0.045;
+
   camera.position.set(
-    currentCamPos.x + mouse.x * 0.14,
+    currentCamPos.x + mouse.x * horizSens,
     currentCamPos.y - mouse.y * vertSens,
     currentCamPos.z
   );
   camera.lookAt(
-    currentLookAt.x + mouse.x * 0.035,
+    currentLookAt.x + mouse.x * (horizSens * 0.35),
     currentLookAt.y - mouse.y * (vertSens * 0.35),
     currentLookAt.z
   );
@@ -930,20 +963,21 @@ function animate() {
       orbitalEarthGroup.position.y = -2.4 - raw * 6.0;
     }
 
-    // Volumetric 3D Cosmos: dynamic layered depth parallax on every scroll swipe
+    // Volumetric 3D Cosmos: dynamic layered depth parallax and living celestial twinkle
+    var twinkle = Math.sin(elapsedTime * 2.2) * 0.08;
     if (starsDeep) {
       starsDeep.position.z = raw * 15;
-      starsDeep.material.opacity = 0.85;
+      starsDeep.material.opacity = Math.max(0.65, 0.85 + twinkle);
       starsDeep.visible = true;
     }
     if (starsMid) {
       starsMid.position.z = raw * 35;
-      starsMid.material.opacity = 0.92;
+      starsMid.material.opacity = Math.max(0.70, 0.92 - twinkle);
       starsMid.visible = true;
     }
     if (starsNear) {
       starsNear.position.z = raw * 75;
-      starsNear.material.opacity = 0.98;
+      starsNear.material.opacity = Math.max(0.75, 0.90 + twinkle * 1.2);
       starsNear.visible = true;
     }
 
