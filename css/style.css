@@ -173,12 +173,12 @@ html, body {
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  padding: 0 8vw 0 0;
+  padding: 0 clamp(200px, 16vw, 340px) 0 0;
 }
 
 .services-minimal {
   width: 100%;
-  max-width: 440px;
+  max-width: 380px;
   position: relative;
   min-height: 320px;
   display: flex;
@@ -218,7 +218,7 @@ html, body {
 
 .service-title {
   font-family: 'Space Grotesk', 'Montserrat', sans-serif;
-  font-size: 32px;
+  font-size: clamp(24px, 2.2vw, 30px);
   font-weight: 700;
   line-height: 1.15;
   letter-spacing: 2px;

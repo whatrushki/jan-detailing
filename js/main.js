@@ -185,7 +185,7 @@ function initDeepCosmosWithLayers() {
       pos[i * 3 + 1] = r * Math.sin(phi) * Math.sin(theta);
       pos[i * 3 + 2] = r * Math.cos(phi);
 
-      var bri = Math.pow(Math.random(), 3.5) * 0.7 + 0.3;
+      var bri = 0.45 + Math.random() * 0.55;
       col[i * 3]     = bri;
       col[i * 3 + 1] = bri;
       col[i * 3 + 2] = bri;
@@ -206,9 +206,10 @@ function initDeepCosmosWithLayers() {
     return new THREE.Points(geo, mat);
   }
 
-  starsDeep = makeStars(6000, 900, 2000, 1.2, 0.85);
-  starsMid  = makeStars(2400, 450, 900, 1.8, 0.95);
-  starsNear = makeStars(250, 250, 450, 2.4, 0.90);
+  // Dense, rich starry deep cosmos filled with sparkling celestial points
+  starsDeep = makeStars(9000, 700, 1800, 2.2, 0.95);
+  starsMid  = makeStars(4500, 350, 750, 2.8, 0.98);
+  starsNear = makeStars(850, 180, 360, 3.4, 0.95);
 
   scene.add(starsDeep);
   scene.add(starsMid);
@@ -606,37 +607,37 @@ function getStepPose(step) {
         washFade: 0.0
       };
 
-    case 1: // 01 WASH: Detailing bay with full-width water (Car angled more towards viewer)
+    case 1: // 01 WASH: Detailing bay with full-width water (Symmetrical front view to prevent headlight cutoff)
       return {
-        carPos: new THREE.Vector3(isDesktop ? -1.35 : -0.65, isDesktop ? 0.78 : 0.96, isDesktop ? 3.1 : 2.2),
-        carRot: new THREE.Euler(0.0, 0.28, 0.0), // Turned more towards viewer
-        camPos: new THREE.Vector3(isDesktop ? -0.10 : 0, isDesktop ? 0.82 : 0.95, isDesktop ? 6.2 : 7.1),
-        lookAt: new THREE.Vector3(isDesktop ? -0.55 : -0.30, isDesktop ? 0.65 : 0.50, 0),
-        fov: isDesktop ? 35 : 37,
+        carPos: new THREE.Vector3(isDesktop ? -0.85 : 0.0, isDesktop ? 0.72 : 0.98, isDesktop ? 3.0 : 2.1),
+        carRot: new THREE.Euler(0.04, 0.0, 0.0), // Strictly front-facing, perfectly balanced, no headlight clipping
+        camPos: new THREE.Vector3(0.0, isDesktop ? 0.78 : 0.95, isDesktop ? 6.5 : 7.2),
+        lookAt: new THREE.Vector3(isDesktop ? -0.35 : 0.0, isDesktop ? 0.60 : 0.48, 0),
+        fov: isDesktop ? 34 : 36,
         studioFade: 1.0,
         headlights: 0.0,
         washFade: 1.0
       };
 
-    case 2: // 02 POLISH: Diagonal stance, shifted further left to clear text space
+    case 2: // 02 POLISH: Slightly larger, zoomed closer, shifted slightly right to clear text
       return {
-        carPos: new THREE.Vector3(isDesktop ? -2.10 : -1.65, isDesktop ? 1.10 : 1.05, isDesktop ? 3.2 : 2.1),
-        carRot: new THREE.Euler(0.0, -0.45, 0.0), // Diagonal flank view, nose away
-        camPos: new THREE.Vector3(isDesktop ? -0.15 : -0.12, isDesktop ? 1.12 : 1.02, 4.85),
-        lookAt: new THREE.Vector3(isDesktop ? -1.20 : -0.95, isDesktop ? 0.98 : 0.68, 0),
-        fov: 37,
+        carPos: new THREE.Vector3(isDesktop ? -1.65 : -1.15, isDesktop ? 0.98 : 0.96, isDesktop ? 3.35 : 2.3),
+        carRot: new THREE.Euler(0.0, -0.40, 0.0), // Dynamic flank angle
+        camPos: new THREE.Vector3(isDesktop ? -0.25 : -0.15, isDesktop ? 1.05 : 0.95, 4.45), // Zoomed slightly closer as requested
+        lookAt: new THREE.Vector3(isDesktop ? -0.95 : -0.65, isDesktop ? 0.88 : 0.60, 0),
+        fov: 35,
         studioFade: 1.0,
         headlights: 0.0,
         washFade: 0.0
       };
 
-    case 3: // 03 INTERIOR: Cabin view, camera placed safely inside cabin (Zero windshield clipping)
+    case 3: // 03 INTERIOR: Camera lowered and pulled back, showing wide cabin, steering wheel & seats
       return {
-        carPos: new THREE.Vector3(isDesktop ? -0.65 : -0.45, isDesktop ? 0.18 : 0.82, isDesktop ? 2.2 : 1.8),
+        carPos: new THREE.Vector3(isDesktop ? -0.65 : -0.45, isDesktop ? 0.22 : 0.75, isDesktop ? 2.2 : 1.8),
         carRot: new THREE.Euler(0.0, 0.16, 0.0),
-        camPos: new THREE.Vector3(isDesktop ? -0.80 : -0.55, isDesktop ? 0.22 : 0.55, isDesktop ? 2.25 : 2.05),
-        lookAt: new THREE.Vector3(isDesktop ? -0.32 : -0.15, isDesktop ? 0.08 : 0.30, isDesktop ? 1.25 : 1.05),
-        fov: isDesktop ? 66 : 70,
+        camPos: new THREE.Vector3(isDesktop ? -0.82 : -0.58, isDesktop ? 0.26 : 0.48, isDesktop ? 2.85 : 2.65), // Pulled camera back from seat/handbrake
+        lookAt: new THREE.Vector3(isDesktop ? -0.28 : -0.12, isDesktop ? 0.15 : 0.36, isDesktop ? 1.15 : 0.95), // Lowered target to view whole cabin
+        fov: isDesktop ? 64 : 68,
         studioFade: 1.0,
         headlights: 0.0,
         washFade: 0.0
@@ -964,20 +965,21 @@ function animate() {
     }
 
     // Volumetric 3D Cosmos: dynamic layered depth parallax and living celestial twinkle
-    var twinkle = Math.sin(elapsedTime * 2.2) * 0.08;
+    var twinkle1 = (Math.sin(elapsedTime * 2.8) * 0.5 + 0.5);
+    var twinkle2 = (Math.cos(elapsedTime * 3.4) * 0.5 + 0.5);
     if (starsDeep) {
       starsDeep.position.z = raw * 15;
-      starsDeep.material.opacity = Math.max(0.65, 0.85 + twinkle);
+      starsDeep.material.opacity = 0.70 + twinkle1 * 0.28;
       starsDeep.visible = true;
     }
     if (starsMid) {
       starsMid.position.z = raw * 35;
-      starsMid.material.opacity = Math.max(0.70, 0.92 - twinkle);
+      starsMid.material.opacity = 0.72 + twinkle2 * 0.26;
       starsMid.visible = true;
     }
     if (starsNear) {
       starsNear.position.z = raw * 75;
-      starsNear.material.opacity = Math.max(0.75, 0.90 + twinkle * 1.2);
+      starsNear.material.opacity = 0.75 + ((twinkle1 + twinkle2) * 0.5) * 0.24;
       starsNear.visible = true;
     }
 
