@@ -18,10 +18,10 @@ var aeroSmokeGroup, aeroSmokeParticles, aeroSmokeLines, aeroSmokeMat, aeroLinesM
 var aeroRibbonMesh, aeroRibbonGeo, aeroRibbonMat, aeroRibbonPos, aeroRibbonCol;
 var hyperjumpGroup, hyperjumpLines, hyperjumpGeo, hyperjumpMat, hyperjumpPos, hyperjumpCol, hyperjumpData;
 var lightTrailsGroup, lightTrailsMesh, lightTrailsGeo, lightTrailsMat, lightTrailsPos, lightTrailsCol;
-var starsForeground;
 var hyperjumpProgress = { value: 0 };
 var hyperjumpCarSurge = { value: 0 };
 var hyperjumpCamLag = { value: 0 };
+var hyperjumpCarStretch = { value: 1.0 };
 var isHyperjumpAnimating = false;
 var headlightMat, frontLensMat, rearLightMat;
 var carModelTireOffset = -0.56;
@@ -272,13 +272,9 @@ function initDeepCosmosWithLayers() {
   starsMid  = makeStars(4500, 350, 750, 2.8, 0.98);
   starsNear = makeStars(850, 180, 360, 3.4, 0.95);
 
-  // Volumetric Foreground Floating Stars right in front of the viewer's eyes (r = 4 to 28)
-  starsForeground = makeStars(350, 4.5, 32, 2.8, 0.92);
-
   scene.add(starsDeep);
   scene.add(starsMid);
   scene.add(starsNear);
-  scene.add(starsForeground);
 }
 
 /* ============================================================
@@ -802,53 +798,75 @@ function triggerHyperjump(onDone) {
       hyperjumpProgress.value = 0;
       hyperjumpCarSurge.value = 0;
       hyperjumpCamLag.value = 0;
+      hyperjumpCarStretch.value = 1.0;
+      if (carGroup) carGroup.scale.set(1, 1, 1);
       if (typeof onDone === 'function') onDone();
     }
   });
 
-  // Phase 1: Pre-jump charge & stretch (0 -> 1.0s)
-  // Stars stretch, rear tail light trails ignite and streak backwards
+  // Phase 1: Pre-jump tension & space pinch (0.0 -> 0.6s)
+  // Rear light trails ignite, subtle optical space contraction
   tl.to(hyperjumpProgress, {
-    value: 1.0,
-    duration: 1.0,
-    ease: 'power2.in'
+    value: 0.35,
+    duration: 0.6,
+    ease: 'power1.in'
   }, 0);
 
-  // Phase 2: Full Hyperspace Cruise (0.8 -> 2.0s)
-  // Car surges forward deep into space (up to -14 units)
+  // Phase 2: Lightspeed Warp & Relativistic Car Stretch (0.6 -> 1.7s)
+  // Stars streak into intense beams, car elongates along Z axis up to 2.6x!
+  tl.to(hyperjumpProgress, {
+    value: 1.0,
+    duration: 1.1,
+    ease: 'power3.in'
+  }, 0.6);
+
+  tl.to(hyperjumpCarStretch, {
+    value: 2.65,
+    duration: 1.1,
+    ease: 'power2.in'
+  }, 0.6);
+
+  // Car surges forward deep into the cosmos (-16 units)
   tl.to(hyperjumpCarSurge, {
     value: 1.0,
     duration: 1.2,
-    ease: 'power2.inOut'
-  }, 0.8);
-
-  // Camera stays back initially, creating massive distance
-  tl.to(hyperjumpCamLag, {
-    value: 1.0,
-    duration: 1.0,
     ease: 'power2.in'
   }, 0.8);
 
-  // Phase 3: Drop out of hyperspace (1.9 -> 3.4s)
-  // Stars rapidly decelerate right in front of the viewer's eyes and FREEZE in 3D space!
+  // Camera lags behind in awe, widening the space between viewer and car
+  tl.to(hyperjumpCamLag, {
+    value: 1.0,
+    duration: 1.1,
+    ease: 'power2.in'
+  }, 0.8);
+
+  // Phase 3: Hyperspace Exit & Deceleration (1.7 -> 3.1s)
+  // Car snaps out of warp back into solid physical scale with back bounce
+  tl.to(hyperjumpCarStretch, {
+    value: 1.0,
+    duration: 0.65,
+    ease: 'back.out(1.8)'
+  }, 1.7);
+
+  // Stars visibly decelerate right before our eyes, lines collapse and freeze as 3D points!
   tl.to(hyperjumpProgress, {
     value: 0.0,
-    duration: 1.5,
-    ease: 'power3.out'
-  }, 1.9);
+    duration: 1.4,
+    ease: 'power4.out'
+  }, 1.7);
 
-  // Phase 4: Camera gently catches up to the car, settling into the final rest pose (2.3 -> 3.9s)
+  // Phase 4: Camera gently catches up to the cruising car (2.2 -> 3.8s)
   tl.to(hyperjumpCarSurge, {
     value: 0.0,
     duration: 1.6,
     ease: 'power3.out'
-  }, 2.3);
+  }, 2.2);
 
   tl.to(hyperjumpCamLag, {
     value: 0.0,
     duration: 1.6,
     ease: 'power3.out'
-  }, 2.3);
+  }, 2.2);
 }
 
 /* ============================================================
@@ -1580,58 +1598,47 @@ function animate() {
     }
 
     // 4. STAR WARS HYPERSPACE JUMP & LONG EXPOSURE LIGHT TRAILS (STEP 4)
-    // The hyperjump only engages AFTER the car has fully rotated 180° pointing deep into space!
-    // Sequence:
-    // a) raw in [3.0, 3.55]: Car fully finishes 180° rotation, facing straight into deep cosmos
-    // b) raw in [3.55, 3.82]: Car begins stretching forward, tail light trails streak back, stars accelerate
-    // c) raw in [3.82, 4.0]: Car breaks out of hyperspace far ahead, stars decelerate & freeze right in front of camera, camera gently catches up!
-    var scrollWarp = 0;
-    var carForwardSurge = 0;
-    var camLag = 0;
+    // Only triggered cleanly ONCE via triggerHyperjump() after car finishes 180° rotation!
+    var currentWarp = hyperjumpProgress.value;
 
-    if (raw >= 3.55 && raw <= 4.0) {
-      if (raw < 3.82) {
-        // Hyperspace acceleration & stretch
-        scrollWarp = (raw - 3.55) / 0.27;
+    // Relativistic car stretching & volume-preserving pinch
+    if (carGroup) {
+      var sZ = hyperjumpCarStretch.value;
+      if (sZ > 1.001) {
+        var sXY = 1.0 / Math.sqrt(sZ);
+        carGroup.scale.set(sXY, sXY, sZ);
       } else {
-        // Drop out of hyperspace: stars decelerate & freeze
-        scrollWarp = Math.max(0, 1.0 - (raw - 3.82) / 0.18);
-        // Car surges far ahead upon exit, then camera catches up
-        var exitT = (raw - 3.82) / 0.18;
-        carForwardSurge = Math.sin(exitT * Math.PI) * 2.8;
+        carGroup.scale.set(1, 1, 1);
       }
     }
-
-    var currentWarp = Math.max(scrollWarp, hyperjumpProgress.value);
 
     // Dynamic surge forward deep into the cosmos during hyperjump & camera lag
     var surgeAmount = hyperjumpCarSurge.value * 16.0;
     var camLagAmount = hyperjumpCamLag.value * 3.5;
 
-    if (carGroup && (surgeAmount > 0.001 || carForwardSurge > 0.001)) {
-      var totalSurge = Math.max(surgeAmount, carForwardSurge * 1.8);
-      carGroup.position.z = currentCarPos.z - totalSurge;
+    if (carGroup && surgeAmount > 0.001) {
+      carGroup.position.z = currentCarPos.z - surgeAmount;
     }
 
     if (camLagAmount > 0.001) {
       camera.position.z = currentCamPos.z + camLagAmount;
     }
 
-    // Dynamic FOV expansion during lightspeed warp
+    // Optical space compression: camera FOV expands from 34° to 56° during hyperspace tunnel
     if (currentWarp > 0.001) {
-      camera.fov = currentFov.value + currentWarp * 15.0;
+      camera.fov = currentFov.value + currentWarp * 22.0;
       camera.updateProjectionMatrix();
     }
 
     // 4.1 Update Starfield Hyperdrive Streaks & Deceleration
     if (hyperjumpGroup && hyperjumpMat && hyperjumpPos && hyperjumpData) {
-      var showHyper = (currentWarp > 0.001 || isHyperjumpAnimating || raw >= 3.55);
+      var showHyper = (currentWarp > 0.001 || isHyperjumpAnimating);
       hyperjumpGroup.visible = showHyper;
       hyperjumpMat.opacity = Math.min(1.0, currentWarp * 1.35);
 
       var dtWarp = 0.016;
       var warpSpeedMult = currentWarp * 4.2;
-      var streakLen = currentWarp * 18.0;
+      var streakLen = currentWarp * 20.0;
 
       for (var hi = 0; hi < hyperjumpData.length; hi++) {
         var hd = hyperjumpData[hi];
@@ -1660,10 +1667,7 @@ function animate() {
     }
 
     // 4.2 Long-Exposure Tail Light Streaks from F40's 4 Circular Lamps
-    // Left Outer: Amber (-0.523, 0.015, -1.575)
-    // Left Inner: Red   (-0.397, 0.022, -1.588)
-    // Right Inner: Red  ( 0.396, 0.022, -1.588)
-    // Right Outer: Amber( 0.523, 0.015, -1.575)
+    // Aligned directly to the 4 circular rear lenses on the rear grille
     if (lightTrailsMesh && lightTrailsMat && lightTrailsPos && lightTrailsGeo) {
       var isTrailActive = (currentWarp > 0.005);
       lightTrailsMesh.visible = isTrailActive;
@@ -1671,10 +1675,10 @@ function animate() {
       if (isTrailActive) {
         lightTrailsMat.opacity = Math.min(1.0, currentWarp * 1.8);
         var lampOrigins = [
-          { x: -0.523, y: 0.015, z: -1.575, r: 2.20, g: 1.40, b: 0.05 }, // Left Amber
-          { x: -0.397, y: 0.022, z: -1.588, r: 2.20, g: 0.02, b: 0.01 }, // Left Red
-          { x:  0.396, y: 0.022, z: -1.588, r: 2.20, g: 0.02, b: 0.01 }, // Right Red
-          { x:  0.523, y: 0.015, z: -1.575, r: 2.20, g: 1.40, b: 0.05 }  // Right Amber
+          { x: -0.523, y: -0.075, z: -1.58, r: 2.20, g: 1.40, b: 0.05 }, // Left Outer Amber
+          { x: -0.397, y: -0.070, z: -1.59, r: 2.20, g: 0.02, b: 0.01 }, // Left Inner Red
+          { x:  0.396, y: -0.070, z: -1.59, r: 2.20, g: 0.02, b: 0.01 }, // Right Inner Red
+          { x:  0.523, y: -0.075, z: -1.58, r: 2.20, g: 1.40, b: 0.05 }  // Right Outer Amber
         ];
 
         var trailSegCount = 32;
