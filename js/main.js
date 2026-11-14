@@ -18,6 +18,38 @@ var aeroSmokeGroup, aeroSmokeParticles, aeroSmokeLines, aeroSmokeMat, aeroLinesM
 var headlightMat, frontLensMat, rearLightMat;
 var carModelTireOffset = -0.56;
 
+// Exact surface height profile sampled from F40 3D mesh vertices
+var F40_SURFACE_PROFILE = [
+  { z: 1.15, y0: 0.007, ySide: 0.032 },
+  { z: 1.05, y0: 0.027, ySide: 0.059 },
+  { z: 0.95, y0: 0.048, ySide: 0.080 },
+  { z: 0.85, y0: 0.084, ySide: 0.099 },
+  { z: 0.75, y0: 0.130, ySide: 0.115 },
+  { z: 0.65, y0: 0.143, ySide: 0.138 },
+  { z: 0.55, y0: 0.151, ySide: 0.181 },
+  { z: 0.45, y0: 0.189, ySide: 0.185 },
+  { z: 0.35, y0: 0.256, ySide: 0.254 },
+  { z: 0.25, y0: 0.284, ySide: 0.282 },
+  { z: 0.15, y0: 0.340, ySide: 0.338 },
+  { z: 0.05, y0: 0.359, ySide: 0.356 },
+  { z: -0.05, y0: 0.371, ySide: 0.368 },
+  { z: -0.15, y0: 0.375, ySide: 0.371 },
+  { z: -0.25, y0: 0.370, ySide: 0.365 },
+  { z: -0.35, y0: 0.376, ySide: 0.371 },
+  { z: -0.45, y0: 0.372, ySide: 0.367 },
+  { z: -0.55, y0: 0.358, ySide: 0.361 },
+  { z: -0.65, y0: 0.352, ySide: 0.350 },
+  { z: -0.75, y0: 0.339, ySide: 0.329 },
+  { z: -0.85, y0: 0.317, ySide: 0.301 },
+  { z: -0.95, y0: 0.292, ySide: 0.273 },
+  { z: -1.05, y0: 0.266, ySide: 0.257 },
+  { z: -1.15, y0: 0.242, ySide: 0.232 },
+  { z: -1.25, y0: 0.210, ySide: 0.188 },
+  { z: -1.35, y0: 0.313, ySide: 0.316 },
+  { z: -1.45, y0: 0.350, ySide: 0.360 },
+  { z: -1.55, y0: 0.386, ySide: 0.386 }
+];
+
 var isIntroActive = true;
 var introTimeline = null;
 var currentStep = 0;
@@ -381,38 +413,6 @@ function initStudioEnvironment() {
    AERODYNAMIC WIND TUNNEL STREAMLINES (STEP 1: WASH / AERO DRY)
    Focused, semi-transparent aerodynamic vapor ribbons hugging F40 contours
    ============================================================ */
-// Exact surface height from 3D model vertices
-var F40_SURFACE_PROFILE = [
-  { z: 1.15, y0: 0.007, ySide: 0.032 },
-  { z: 1.05, y0: 0.027, ySide: 0.059 },
-  { z: 0.95, y0: 0.048, ySide: 0.080 },
-  { z: 0.85, y0: 0.084, ySide: 0.099 },
-  { z: 0.75, y0: 0.130, ySide: 0.115 },
-  { z: 0.65, y0: 0.143, ySide: 0.138 },
-  { z: 0.55, y0: 0.151, ySide: 0.181 },
-  { z: 0.45, y0: 0.189, ySide: 0.185 },
-  { z: 0.35, y0: 0.256, ySide: 0.254 },
-  { z: 0.25, y0: 0.284, ySide: 0.282 },
-  { z: 0.15, y0: 0.340, ySide: 0.338 },
-  { z: 0.05, y0: 0.359, ySide: 0.356 },
-  { z: -0.05, y0: 0.371, ySide: 0.368 },
-  { z: -0.15, y0: 0.375, ySide: 0.371 },
-  { z: -0.25, y0: 0.370, ySide: 0.365 },
-  { z: -0.35, y0: 0.376, ySide: 0.371 },
-  { z: -0.45, y0: 0.372, ySide: 0.367 },
-  { z: -0.55, y0: 0.358, ySide: 0.361 },
-  { z: -0.65, y0: 0.352, ySide: 0.350 },
-  { z: -0.75, y0: 0.339, ySide: 0.329 },
-  { z: -0.85, y0: 0.317, ySide: 0.301 },
-  { z: -0.95, y0: 0.292, ySide: 0.273 },
-  { z: -1.05, y0: 0.266, ySide: 0.257 },
-  { z: -1.15, y0: 0.242, ySide: 0.232 },
-  { z: -1.25, y0: 0.210, ySide: 0.188 },
-  { z: -1.35, y0: 0.313, ySide: 0.316 },
-  { z: -1.45, y0: 0.350, ySide: 0.360 },
-  { z: -1.55, y0: 0.386, ySide: 0.386 }
-];
-
 function getF40SurfaceY(x, z) {
   var absX = Math.abs(x);
   var sideBlend = Math.min(1.0, absX / 0.35);
@@ -423,6 +423,10 @@ function getF40SurfaceY(x, z) {
   if (z <= -1.55) {
     var wakeDist = -1.55 - z;
     return 0.386 - wakeDist * 0.04;
+  }
+
+  if (!F40_SURFACE_PROFILE || !F40_SURFACE_PROFILE.length) {
+    return 0.25;
   }
 
   for (var i = 0; i < F40_SURFACE_PROFILE.length - 1; i++) {
