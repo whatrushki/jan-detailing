@@ -17,6 +17,8 @@ var polishSpotLight, washBayLight, waterStreams, waterVelArr;
 var aeroSmokeGroup, aeroSmokeParticles, aeroSmokeLines, aeroSmokeMat, aeroLinesMat, aeroGeo, aeroParticleData, aeroSamples, aeroPositions, aeroColors;
 var aeroRibbonMesh, aeroRibbonGeo, aeroRibbonMat, aeroRibbonPos, aeroRibbonCol;
 var hyperjumpGroup, hyperjumpLines, hyperjumpGeo, hyperjumpMat, hyperjumpPos, hyperjumpCol, hyperjumpData;
+var lightTrailsGroup, lightTrailsMesh, lightTrailsGeo, lightTrailsMat, lightTrailsPos, lightTrailsCol;
+var starsForeground;
 var hyperjumpProgress = { value: 0 };
 var isHyperjumpAnimating = false;
 var headlightMat, frontLensMat, rearLightMat;
@@ -268,9 +270,13 @@ function initDeepCosmosWithLayers() {
   starsMid  = makeStars(4500, 350, 750, 2.8, 0.98);
   starsNear = makeStars(850, 180, 360, 3.4, 0.95);
 
+  // Volumetric Foreground Floating Stars right in front of the viewer's eyes (r = 4 to 28)
+  starsForeground = makeStars(350, 4.5, 32, 2.8, 0.92);
+
   scene.add(starsDeep);
   scene.add(starsMid);
   scene.add(starsNear);
+  scene.add(starsForeground);
 }
 
 /* ============================================================
@@ -736,6 +742,45 @@ function initHyperspaceSystem() {
   hyperjumpLines = new THREE.LineSegments(hyperjumpGeo, hyperjumpMat);
   hyperjumpGroup.add(hyperjumpLines);
 
+  // 4 Long-Exposure Tail Light Trails (Left Amber, Left Red, Right Red, Right Amber)
+  // Each trail is a glowing continuous ribbon trailing backwards from each circular tail lamp
+  var trailSegs = 32;
+  var totalTrailVerts = 4 * trailSegs * 2;
+  lightTrailsPos = new Float32Array(totalTrailVerts * 3);
+  lightTrailsCol = new Float32Array(totalTrailVerts * 3);
+  var trailIndices = [];
+
+  for (var tIdx = 0; tIdx < 4; tIdx++) {
+    var baseV = tIdx * trailSegs * 2;
+    for (var seg = 0; seg < trailSegs - 1; seg++) {
+      var v0 = baseV + seg * 2;
+      var v1 = v0 + 1;
+      var v2 = v0 + 2;
+      var v3 = v0 + 3;
+      trailIndices.push(v0, v1, v2);
+      trailIndices.push(v2, v1, v3);
+    }
+  }
+
+  lightTrailsGeo = new THREE.BufferGeometry();
+  lightTrailsGeo.setAttribute('position', new THREE.BufferAttribute(lightTrailsPos, 3));
+  lightTrailsGeo.setAttribute('color', new THREE.BufferAttribute(lightTrailsCol, 3));
+  lightTrailsGeo.setIndex(trailIndices);
+
+  lightTrailsMat = new THREE.MeshBasicMaterial({
+    vertexColors: true,
+    transparent: true,
+    opacity: 0.0,
+    blending: THREE.AdditiveBlending,
+    side: THREE.DoubleSide,
+    depthWrite: false
+  });
+  lightTrailsMat.fog = false;
+
+  lightTrailsMesh = new THREE.Mesh(lightTrailsGeo, lightTrailsMat);
+  // Add to carGroup so trails anchor exactly to the 4 circular rear lamps of the F40
+  carGroup.add(lightTrailsMesh);
+
   var hjBtn = document.getElementById('hyperjumpBtn');
   if (hjBtn) {
     hjBtn.addEventListener('click', function(e) {
@@ -749,6 +794,11 @@ function triggerHyperjump() {
   if (isHyperjumpAnimating) return;
   isHyperjumpAnimating = true;
 
+  // Cinematic Hyperjump:
+  // 1. Car already turned 180° pointing deep into space
+  // 2. Pre-jump tension / stretch (0.4s)
+  // 3. Peak warp: stars and tail light trails stream forward at lightspeed (1.4s)
+  // 4. Drop out of hyperspace: car surges far ahead, stars decelerate & freeze right in front of viewer, camera catches up (1.5s)
   gsap.timeline({
     onComplete: function() {
       isHyperjumpAnimating = false;
@@ -756,17 +806,17 @@ function triggerHyperjump() {
   })
   .to(hyperjumpProgress, {
     value: 1.0,
-    duration: 1.2,
+    duration: 1.3,
     ease: 'power2.in'
   })
   .to(hyperjumpProgress, {
     value: 1.0,
-    duration: 0.8,
+    duration: 0.7,
     ease: 'none'
   })
   .to(hyperjumpProgress, {
     value: 0.0,
-    duration: 1.4,
+    duration: 1.6,
     ease: 'power3.out'
   });
 }
@@ -877,23 +927,35 @@ function skipIntroIfActive() {
 function startIntroSequence() {
   console.log('START INTRO SEQUENCE CALLED');
   try {
+    // Step 0 rest pose
     var rest = getStepPose(0);
 
-    // Initial position in deep space (classic grand approach)
-    currentCarPos.set(rest.carPos.x + 1.2, rest.carPos.y + 4.8, -60);
-    currentCarRot.set(
-      rest.carRot.x + Math.PI * 2.0,
-      rest.carRot.y + Math.PI * 2.5,
-      rest.carRot.z - Math.PI * 1.4
-    );
-    currentCamPos.set(0.2, 0.3, 10.0);
-    currentLookAt.set(rest.lookAt.x, rest.lookAt.y, rest.lookAt.z);
+    // Initial camera starts at target position immediately so scene is 100% solid and never teleports!
+    currentCamPos.copy(rest.camPos);
+    currentLookAt.copy(rest.lookAt);
     currentFov.value = rest.fov;
     currentStudioFade.value = 0;
+
+    // F40 glides in gracefully from deep space (-28 units)
+    currentCarPos.set(rest.carPos.x + 0.35, rest.carPos.y + 0.85, -28.0);
+    currentCarRot.set(
+      rest.carRot.x + 0.65,
+      rest.carRot.y + 1.25,
+      rest.carRot.z - 0.45
+    );
 
     carGroup.position.copy(currentCarPos);
     carGroup.rotation.copy(currentCarRot);
     carGroup.visible = true;
+
+    // Earth is solid and fully visible immediately
+    if (orbitalEarthGroup) {
+      orbitalEarthGroup.visible = true;
+      orbitalEarthGroup.position.set(-3.2, -2.4, -22.0);
+    }
+    if (earthMesh && earthMesh.material) {
+      earthMesh.material.opacity = 1.0;
+    }
 
     // Strict lock: text hidden initially, flickers in concurrently during landing
     if (heroContent) {
@@ -915,28 +977,12 @@ function startIntroSequence() {
       }
     });
 
-    // Grand cinematic approach: camera glides in from orbit toward Earth and the car
-    introTimeline.to(currentCamPos, {
-      x: rest.camPos.x,
-      y: rest.camPos.y,
-      z: rest.camPos.z,
-      duration: 2.6,
-      ease: 'power3.out'
-    }, 0);
-
-    introTimeline.to(currentLookAt, {
-      x: rest.lookAt.x,
-      y: rest.lookAt.y,
-      z: rest.lookAt.z,
-      duration: 2.6,
-      ease: 'power3.out'
-    }, 0);
-
+    // F40 glides into orbit cleanly without camera jumping or jitter
     introTimeline.to(currentCarPos, {
       x: rest.carPos.x,
       y: rest.carPos.y,
       z: rest.carPos.z,
-      duration: 2.6,
+      duration: 2.2,
       ease: 'power3.out'
     }, 0);
 
@@ -944,18 +990,18 @@ function startIntroSequence() {
       x: rest.carRot.x,
       y: rest.carRot.y,
       z: rest.carRot.z,
-      duration: 2.6,
+      duration: 2.2,
       ease: 'power3.out'
     }, 0);
 
-    // Concurrently trigger text flicker during landing
+    // Text flickers in only once the car has arrived into orbit
     introTimeline.add(function() {
       if (heroContent) {
         heroContent.classList.remove('hero-hidden');
         heroContent.classList.add('hero-visible');
       }
       triggerFlickerIn(brandOverlay);
-    }, 1.9);
+    }, 1.8);
   } catch (err) {
     console.error('START INTRO ERROR:', err);
   }
@@ -1339,14 +1385,20 @@ function animate() {
       studioAmbientLight.intensity = sFade * 0.55;
     }
 
-    // Earth ONLY on Step 0 (Hero): smoothly fades out during the transition to Wash
-    var earthAlpha = Math.max(0, 1.0 - raw * 1.5);
-    if (earthMesh && earthMesh.material) {
-      earthMesh.material.opacity = earthAlpha;
-    }
+    // Physical Descent from Orbit (Hero Step 0 -> Step 1):
+    // Smooth, massive curvature descent of the planetary sphere with atmospheric edge illumination
     if (orbitalEarthGroup) {
-      orbitalEarthGroup.visible = (raw < 0.98);
-      orbitalEarthGroup.position.y = -2.4 - raw * 6.0;
+      orbitalEarthGroup.visible = (raw < 1.15);
+      // Kinematic de-orbit descent: Earth dips down and recedes with atmospheric parallax
+      var earthDrop = Math.pow(Math.min(1.0, raw), 1.6);
+      orbitalEarthGroup.position.y = -2.4 - earthDrop * 14.5;
+      orbitalEarthGroup.position.z = -22.0 - earthDrop * 28.0;
+      orbitalEarthGroup.position.x = -3.2 - earthDrop * 6.5;
+      orbitalEarthGroup.rotation.z = -0.13 - earthDrop * 0.18;
+    }
+    if (earthMesh && earthMesh.material) {
+      var earthAlpha = Math.max(0, 1.0 - Math.pow(Math.min(1.0, raw), 2.2));
+      earthMesh.material.opacity = earthAlpha;
     }
 
     // Volumetric 3D Cosmos: dynamic layered depth parallax and living celestial twinkle
@@ -1472,32 +1524,57 @@ function animate() {
       rearLightMat.emissiveIntensity = targetLights * 12.0;
     }
 
-    // 4. STAR WARS HYPERSPACE JUMP & FROZEN DEEP SPACE (ACTIVE ON STEP 4 & TRANSITION)
-    var isWarpTransition = (raw >= 3.1 && raw <= 4.0);
+    // 4. STAR WARS HYPERSPACE JUMP & LONG EXPOSURE LIGHT TRAILS (STEP 4)
+    // The hyperjump only engages AFTER the car has fully rotated 180° pointing deep into space!
+    // Sequence:
+    // a) raw in [3.0, 3.55]: Car fully finishes 180° rotation, facing straight into deep cosmos
+    // b) raw in [3.55, 3.82]: Car begins stretching forward, tail light trails streak back, stars accelerate
+    // c) raw in [3.82, 4.0]: Car breaks out of hyperspace far ahead, stars decelerate & freeze right in front of camera, camera gently catches up!
     var scrollWarp = 0;
-    if (isWarpTransition) {
+    var carForwardSurge = 0;
+    var camLag = 0;
+
+    if (raw >= 3.55 && raw <= 4.0) {
       if (raw < 3.82) {
-        scrollWarp = (raw - 3.1) / 0.72;
+        // Hyperspace acceleration & stretch
+        scrollWarp = (raw - 3.55) / 0.27;
       } else {
-        // Exit from hyperspace: rapid deceleration ease-out to zero at 4.0
+        // Drop out of hyperspace: stars decelerate & freeze
         scrollWarp = Math.max(0, 1.0 - (raw - 3.82) / 0.18);
+        // Car surges far ahead upon exit, then camera catches up
+        var exitT = (raw - 3.82) / 0.18;
+        carForwardSurge = Math.sin(exitT * Math.PI) * 2.8;
       }
     }
 
     var currentWarp = Math.max(scrollWarp, hyperjumpProgress.value);
+
+    // During manual button hyperjump: surge car and lag camera
+    if (hyperjumpProgress.value > 0) {
+      carForwardSurge = Math.sin(hyperjumpProgress.value * Math.PI) * 3.4;
+    }
+
+    // Apply forward surge to car and camera lag
+    if (carGroup && (carForwardSurge > 0.001)) {
+      // In carGroup, moving forward into the distance means along its forward axis (-Z in world, +Z in 180 local)
+      carGroup.position.z = currentCarPos.z - carForwardSurge * 1.8;
+    }
+
+    // 4.1 Update Starfield Hyperdrive Streaks & Deceleration
     if (hyperjumpGroup && hyperjumpMat && hyperjumpPos && hyperjumpData) {
-      var showHyper = (currentWarp > 0.001 || isHyperjumpAnimating || raw >= 3.8);
+      var showHyper = (currentWarp > 0.001 || isHyperjumpAnimating || raw >= 3.55);
       hyperjumpGroup.visible = showHyper;
-      hyperjumpMat.opacity = Math.min(1.0, currentWarp * 1.25);
+      hyperjumpMat.opacity = Math.min(1.0, currentWarp * 1.35);
 
       var dtWarp = 0.016;
-      var warpSpeedMult = currentWarp * 3.8;
-      var streakLen = currentWarp * 16.0;
+      var warpSpeedMult = currentWarp * 4.2;
+      var streakLen = currentWarp * 18.0;
 
       for (var hi = 0; hi < hyperjumpData.length; hi++) {
         var hd = hyperjumpData[hi];
 
-        // Move only while warping; when warp reaches 0, stars COMPLETELY FREEZE in 3D space!
+        // Move stars forward along +Z past the viewer's eyes
+        // When warp reaches 0, stars COMPLETELY STOP and FREEZE in 3D space!
         if (currentWarp > 0.001) {
           hd.z += hd.speed * warpSpeedMult * dtWarp;
           if (hd.z > 25.0) {
@@ -1516,6 +1593,66 @@ function animate() {
 
       if (hyperjumpGeo && hyperjumpGeo.attributes && hyperjumpGeo.attributes.position) {
         hyperjumpGeo.attributes.position.needsUpdate = true;
+      }
+    }
+
+    // 4.2 Long-Exposure Tail Light Streaks from F40's 4 Circular Lamps
+    // Left Outer: Amber (-0.523, 0.015, -1.575)
+    // Left Inner: Red   (-0.397, 0.022, -1.588)
+    // Right Inner: Red  ( 0.396, 0.022, -1.588)
+    // Right Outer: Amber( 0.523, 0.015, -1.575)
+    if (lightTrailsMesh && lightTrailsMat && lightTrailsPos && lightTrailsGeo) {
+      var isTrailActive = (currentWarp > 0.005);
+      lightTrailsMesh.visible = isTrailActive;
+
+      if (isTrailActive) {
+        lightTrailsMat.opacity = Math.min(1.0, currentWarp * 1.6);
+        var lampOrigins = [
+          { x: -0.523, y: 0.015, z: -1.575, r: 1.00, g: 0.65, b: 0.02 }, // Left Amber
+          { x: -0.397, y: 0.022, z: -1.588, r: 1.00, g: 0.03, b: 0.02 }, // Left Red
+          { x:  0.396, y: 0.022, z: -1.588, r: 1.00, g: 0.03, b: 0.02 }, // Right Red
+          { x:  0.523, y: 0.015, z: -1.575, r: 1.00, g: 0.65, b: 0.02 }  // Right Amber
+        ];
+
+        var trailSegCount = 32;
+        var maxTrailDist = currentWarp * 16.5; // Trails stretch backwards up to 16.5 meters
+        var trailWidth = 0.045; // 4.5cm wide luminous laser ribbon
+
+        var trVIdx = 0;
+        for (var tIdx = 0; tIdx < 4; tIdx++) {
+          var lamp = lampOrigins[tIdx];
+          for (var seg = 0; seg < trailSegCount; seg++) {
+            var sFrac = seg / (trailSegCount - 1);
+            // Trail extends backwards from the lamp (-Z in local is +Z trailing behind the rear)
+            // Notice: local -Z is the rear bumper of F40! So trailing backwards means z < -1.58 (-Z direction in local)
+            var tz = lamp.z - sFrac * maxTrailDist;
+            var falloff = Math.pow(1.0 - sFrac, 1.8);
+
+            // Subtle warp pulsation along the trail
+            var pulse = Math.sin(seg * 0.8 - elapsedTime * 12.0) * 0.008 * (1.0 - sFrac);
+
+            // Vertex 0 (left edge of ribbon)
+            lightTrailsPos[trVIdx * 3]     = lamp.x - trailWidth * 0.5;
+            lightTrailsPos[trVIdx * 3 + 1] = lamp.y + pulse;
+            lightTrailsPos[trVIdx * 3 + 2] = tz;
+            lightTrailsCol[trVIdx * 3]     = lamp.r * falloff;
+            lightTrailsCol[trVIdx * 3 + 1] = lamp.g * falloff;
+            lightTrailsCol[trVIdx * 3 + 2] = lamp.b * falloff;
+            trVIdx++;
+
+            // Vertex 1 (right edge of ribbon)
+            lightTrailsPos[trVIdx * 3]     = lamp.x + trailWidth * 0.5;
+            lightTrailsPos[trVIdx * 3 + 1] = lamp.y - pulse;
+            lightTrailsPos[trVIdx * 3 + 2] = tz;
+            lightTrailsCol[trVIdx * 3]     = lamp.r * falloff;
+            lightTrailsCol[trVIdx * 3 + 1] = lamp.g * falloff;
+            lightTrailsCol[trVIdx * 3 + 2] = lamp.b * falloff;
+            trVIdx++;
+          }
+        }
+
+        if (lightTrailsGeo.attributes.position) lightTrailsGeo.attributes.position.needsUpdate = true;
+        if (lightTrailsGeo.attributes.color) lightTrailsGeo.attributes.color.needsUpdate = true;
       }
     }
   }
