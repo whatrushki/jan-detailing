@@ -471,23 +471,48 @@ function loadFerrariF40() {
 }
 
 /* ============================================================
-   INTRO FLY-IN SEQUENCE (Locked until car arrives)
+   INTRO FLY-IN SEQUENCE (Locked until car arrives, but skippable)
    ============================================================ */
+function skipIntroIfActive() {
+  if (isIntroActive) {
+    if (introTimeline) introTimeline.kill();
+    isIntroActive = false;
+    window.__isIntroActive = false;
+    var rest = getStepPose(0);
+    currentCarPos.copy(rest.carPos);
+    currentCarRot.copy(rest.carRot);
+    currentCamPos.copy(rest.camPos);
+    currentLookAt.copy(rest.lookAt);
+    if (heroContent) {
+      heroContent.classList.remove('hero-hidden');
+      heroContent.classList.add('hero-visible');
+    }
+    triggerFlickerIn(brandOverlay);
+  }
+}
+
 function startIntroSequence() {
   console.log('START INTRO SEQUENCE CALLED');
   try {
     var rest = getStepPose(0);
 
     // Initial position in deep space
-    carGroup.position.set(rest.carPos.x + 1.2, rest.carPos.y + 4.8, -60);
-    carGroup.rotation.set(
-      rest.carRot.x + Math.PI * 2.0,
-      rest.carRot.y + Math.PI * 2.5,
-      rest.carRot.z - Math.PI * 1.4
+    currentCarPos.set(rest.carPos.x - 0.3, rest.carPos.y + 0.6, -30);
+    currentCarRot.set(
+      rest.carRot.x + 0.6,
+      rest.carRot.y + 1.0,
+      rest.carRot.z - 0.4
     );
+    currentCamPos.copy(rest.camPos);
+    currentLookAt.copy(rest.lookAt);
+    currentFov.value = rest.fov;
+    currentStudioFade.value = 0;
+
+    carGroup.position.copy(currentCarPos);
+    carGroup.rotation.copy(currentCarRot);
     carGroup.visible = true;
 
-    // Strict lock: text hidden while intro is running
+    // Strict lock: text hidden initially, flickers in concurrently during landing
     if (heroContent) {
       heroContent.classList.add('hero-hidden');
       heroContent.classList.remove('hero-visible');
@@ -500,44 +525,36 @@ function startIntroSequence() {
         console.log('INTRO COMPLETE AT:', performance.now());
         isIntroActive = false;
         window.__isIntroActive = false;
-
         currentCarPos.copy(rest.carPos);
         currentCarRot.copy(rest.carRot);
-        currentCamPos.copy(rest.camPos);
-        currentLookAt.copy(rest.lookAt);
-
-        // Text flickers in smoothly on the right exactly as in b696b71
-        if (heroContent) {
-          heroContent.classList.remove('hero-hidden');
-          heroContent.classList.add('hero-visible');
-        }
-        triggerFlickerIn(brandOverlay);
       }
     });
 
-    introTimeline.to(camera.position, {
-      x: rest.camPos.x,
-      y: rest.camPos.y,
-      z: rest.camPos.z,
-      duration: 2.6,
-      ease: 'power3.out'
-    }, 0);
-
-    introTimeline.to(carGroup.position, {
+    // Fast, responsive 1.1s glide into place with zero phase mismatch
+    introTimeline.to(currentCarPos, {
       x: rest.carPos.x,
       y: rest.carPos.y,
       z: rest.carPos.z,
-      duration: 2.6,
-      ease: 'power3.out'
+      duration: 1.1,
+      ease: 'power2.out'
     }, 0);
 
-    introTimeline.to(carGroup.rotation, {
+    introTimeline.to(currentCarRot, {
       x: rest.carRot.x,
       y: rest.carRot.y,
       z: rest.carRot.z,
-      duration: 2.6,
-      ease: 'power3.out'
+      duration: 1.1,
+      ease: 'power2.out'
     }, 0);
+
+    // Concurrently trigger text flicker during the landing glide (no post-snap delay)
+    introTimeline.add(function() {
+      if (heroContent) {
+        heroContent.classList.remove('hero-hidden');
+        heroContent.classList.add('hero-visible');
+      }
+      triggerFlickerIn(brandOverlay);
+    }, 0.5);
   } catch (err) {
     console.error('START INTRO ERROR:', err);
   }
@@ -550,36 +567,36 @@ function getStepPose(step) {
   var isDesktop = window.innerWidth > 900;
 
   switch (step) {
-    case 0: // HERO: Space orbit (Restored exact b696b71 stance & center of mass)
+    case 0: // HERO: Space orbit (Desktop car moved further to the left)
       return {
-        carPos: new THREE.Vector3(isDesktop ? -0.92 : 0, isDesktop ? 0.36 : 0.98, isDesktop ? 2.4 : 1.9),
+        carPos: new THREE.Vector3(isDesktop ? -1.22 : 0, isDesktop ? 0.36 : 0.98, isDesktop ? 2.4 : 1.9),
         carRot: new THREE.Euler(0.94, 0.46, -0.44),
         camPos: new THREE.Vector3(0, 0, 7.5),
-        lookAt: new THREE.Vector3(-0.35, 0.15, 0),
+        lookAt: new THREE.Vector3(isDesktop ? -0.48 : 0, 0.15, 0),
         fov: 35,
         studioFade: 0.0,
         headlights: 0.0,
         washFade: 0.0
       };
 
-    case 1: // 01 WASH: Detailing bay with cascading water (Raised up, perfectly grounded)
+    case 1: // 01 WASH: Detailing bay with cascading water (Raised up above floor edge)
       return {
-        carPos: new THREE.Vector3(isDesktop ? -1.35 : 0, isDesktop ? 0.14 : 0.65, isDesktop ? 3.1 : 2.4),
+        carPos: new THREE.Vector3(isDesktop ? -1.35 : 0, isDesktop ? 0.32 : 0.65, isDesktop ? 3.1 : 2.4),
         carRot: new THREE.Euler(0.0, 0.62, 0.0),
-        camPos: new THREE.Vector3(-0.1, 0.44, 6.2),
-        lookAt: new THREE.Vector3(-0.55, 0.26, 0),
+        camPos: new THREE.Vector3(-0.1, 0.58, 6.2),
+        lookAt: new THREE.Vector3(-0.55, 0.38, 0),
         fov: 35,
         studioFade: 1.0,
         headlights: 0.0,
         washFade: 1.0
       };
 
-    case 2: // 02 POLISH: Diagonal stance, nose turned away from camera, door opening & wheels visible
+    case 2: // 02 POLISH: Diagonal stance, nose turned away from camera, moved slightly left and raised
       return {
-        carPos: new THREE.Vector3(isDesktop ? -1.35 : 0, isDesktop ? 0.06 : 0.65, isDesktop ? 3.1 : 2.5),
+        carPos: new THREE.Vector3(isDesktop ? -1.55 : 0, isDesktop ? 0.22 : 0.65, isDesktop ? 3.1 : 2.5),
         carRot: new THREE.Euler(0.0, -0.45, 0.0), // Diagonal flank view, nose away
-        camPos: new THREE.Vector3(-0.05, 0.32, 5.2),
-        lookAt: new THREE.Vector3(-0.75, 0.20, 0),
+        camPos: new THREE.Vector3(-0.15, 0.44, 5.2),
+        lookAt: new THREE.Vector3(-0.85, 0.30, 0),
         fov: 37,
         studioFade: 1.0,
         headlights: 0.0,
@@ -598,13 +615,13 @@ function getStepPose(step) {
         washFade: 0.0
       };
 
-    case 4: // 04 STUDIO & LOCATION: Centered, elevated cleanly above footer text, headlights on
+    case 4: // 04 STUDIO & LOCATION: Turned around with REAR facing viewer, elevated above footer
     default:
       return {
-        carPos: new THREE.Vector3(0, isDesktop ? 0.45 : 0.50, isDesktop ? 2.0 : 1.7),
-        carRot: new THREE.Euler(0.04, 0.0, 0.0), // Slight aesthetic nose-down pitch
-        camPos: new THREE.Vector3(0, 0.48, 6.2),
-        lookAt: new THREE.Vector3(0, 0.16, 0), // Looking below car center raises car on screen
+        carPos: new THREE.Vector3(0, isDesktop ? 0.42 : 0.48, isDesktop ? 2.0 : 1.7),
+        carRot: new THREE.Euler(0.04, Math.PI, 0.0), // 180 deg - rear tail/spoiler/diffuser faces viewer
+        camPos: new THREE.Vector3(0, 0.52, 6.2),
+        lookAt: new THREE.Vector3(0, 0.18, 0), // Looking below car center raises car on screen
         fov: 34,
         studioFade: 1.0,
         headlights: 1.0,
@@ -684,7 +701,9 @@ function updateUIStep(newStep) {
    STEP CONTROLLER & INTERACTION EVENTS (INERTIAL DEBOUNCE)
    ============================================================ */
 function goToStep(newStep) {
-  if (isIntroActive) return;
+  if (isIntroActive) {
+    skipIntroIfActive();
+  }
   if (newStep < 0 || newStep > 4) return;
   if (newStep === currentStep && !isStepAnimating) return;
 
@@ -717,11 +736,14 @@ function initScrollAndInteractions() {
 
   // Mouse Wheel Navigation (STRICT DEBOUNCE - 1 FLICK = 1 STEP)
   window.addEventListener('wheel', function(e) {
-    if (isIntroActive || isStepAnimating || wheelCooldown) return;
+    if (isIntroActive) {
+      skipIntroIfActive();
+    }
+    if (isStepAnimating || wheelCooldown) return;
     if (Math.abs(e.deltaY) < 20) return;
 
     wheelCooldown = true;
-    setTimeout(function() { wheelCooldown = false; }, 950);
+    setTimeout(function() { wheelCooldown = false; }, 850);
 
     if (e.deltaY > 0) {
       goToStep(currentStep + 1);
@@ -733,7 +755,9 @@ function initScrollAndInteractions() {
   // Touch Drag & Swipe (STRICT DEBOUNCE)
   var touchStartY = 0;
   window.addEventListener('touchstart', function(e) {
-    if (isIntroActive) return;
+    if (isIntroActive) {
+      skipIntroIfActive();
+    }
     if (e.touches && e.touches.length > 0) {
       touchStartY = e.touches[0].clientY;
       var touch = e.touches[0];
@@ -743,7 +767,6 @@ function initScrollAndInteractions() {
   }, { passive: true });
 
   window.addEventListener('touchmove', function(e) {
-    if (isIntroActive) return;
     if (e.touches && e.touches.length > 0) {
       var touch = e.touches[0];
       mouse.targetX = (touch.clientX - windowHalf.x) / windowHalf.x;
@@ -752,14 +775,17 @@ function initScrollAndInteractions() {
   }, { passive: true });
 
   window.addEventListener('touchend', function(e) {
-    if (isIntroActive || isStepAnimating || wheelCooldown) return;
+    if (isIntroActive) {
+      skipIntroIfActive();
+    }
+    if (isStepAnimating || wheelCooldown) return;
     if (!e.changedTouches || e.changedTouches.length === 0) return;
     var touchEndY = e.changedTouches[0].clientY;
     var diffY = touchStartY - touchEndY;
 
     if (Math.abs(diffY) > 35) {
       wheelCooldown = true;
-      setTimeout(function() { wheelCooldown = false; }, 950);
+      setTimeout(function() { wheelCooldown = false; }, 850);
       if (diffY > 0) {
         goToStep(currentStep + 1);
       } else {
@@ -770,16 +796,19 @@ function initScrollAndInteractions() {
 
   // Keyboard Arrow / Page Navigation
   window.addEventListener('keydown', function(e) {
-    if (isIntroActive || isStepAnimating || wheelCooldown) return;
+    if (isIntroActive) {
+      skipIntroIfActive();
+    }
+    if (isStepAnimating || wheelCooldown) return;
     if (e.key === 'ArrowDown' || e.key === 'PageDown' || e.key === ' ') {
       e.preventDefault();
       wheelCooldown = true;
-      setTimeout(function() { wheelCooldown = false; }, 950);
+      setTimeout(function() { wheelCooldown = false; }, 850);
       goToStep(currentStep + 1);
     } else if (e.key === 'ArrowUp' || e.key === 'PageUp') {
       e.preventDefault();
       wheelCooldown = true;
-      setTimeout(function() { wheelCooldown = false; }, 950);
+      setTimeout(function() { wheelCooldown = false; }, 850);
       goToStep(currentStep - 1);
     }
   });
@@ -847,25 +876,29 @@ function animate() {
     currentLookAt.copy(targetLook);
     currentFov.value = targetFovVal;
     currentStudioFade.value = targetFade;
+  }
 
-    camera.fov = currentFov.value;
-    camera.updateProjectionMatrix();
-
+  // Continuous unified 3D updates & parallax: zero teleportation or snap
+  if (carGroup) {
     carGroup.position.copy(currentCarPos);
     carGroup.rotation.copy(currentCarRot);
+  }
 
-    // Subtle pointer parallax applied directly to camera
-    camera.position.set(
-      currentCamPos.x + mouse.x * 0.16,
-      currentCamPos.y - mouse.y * 0.12,
-      currentCamPos.z
-    );
-    camera.lookAt(
-      currentLookAt.x + mouse.x * 0.04,
-      currentLookAt.y - mouse.y * 0.03,
-      currentLookAt.z
-    );
+  camera.fov = currentFov.value;
+  camera.updateProjectionMatrix();
 
+  camera.position.set(
+    currentCamPos.x + mouse.x * 0.16,
+    currentCamPos.y - mouse.y * 0.12,
+    currentCamPos.z
+  );
+  camera.lookAt(
+    currentLookAt.x + mouse.x * 0.04,
+    currentLookAt.y - mouse.y * 0.03,
+    currentLookAt.z
+  );
+
+  if (!isIntroActive && carGroup) {
     var sFade = currentStudioFade.value;
 
     // Dynamic Fog Management: Only active when entering studio
@@ -961,10 +994,10 @@ function animate() {
       washBayLight.target.updateMatrixWorld();
     }
 
-    // 2. POLISHING GLIDING INSPECTION SPOTLIGHT (ACTIVE ON STEP 2: POLISH)
+    // 2. POLISHING GLIDING INSPECTION SPOTLIGHT (SMOOTH FADE IN/OUT ACROSS TRANSITIONS)
     if (polishSpotLight) {
-      var isPolishActive = (baseStep === 2 || nextStep === 2);
-      polishSpotLight.intensity = isPolishActive ? (14.0 + Math.sin(elapsedTime * 2.5) * 4.0) * sFade : 0;
+      var polishFactor = Math.max(0, 1.0 - Math.abs(raw - 2.0));
+      polishSpotLight.intensity = polishFactor * (14.0 + Math.sin(elapsedTime * 2.5) * 4.0) * sFade;
       polishSpotLight.position.set(
         currentCarPos.x - 1.1 + Math.sin(elapsedTime * 1.8) * 1.1,
         currentCarPos.y + 0.85,
