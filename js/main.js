@@ -1,5 +1,6 @@
 import * as THREE from './libs/three.module.js';
 import { GLTFLoader } from './libs/GLTFLoader.js';
+import { initTuner } from './tuner.js';
 
 window.THREE = THREE;
 
@@ -58,6 +59,14 @@ initStudioEnvironment();
 initWaterWashStreams();
 loadFerrariF40();
 initScrollAndInteractions();
+initTuner({
+  THREE: THREE,
+  camera: camera,
+  carGroup: carGroup,
+  getStepPose: getStepPose,
+  goToStep: goToStep,
+  getCurrentStep: function() { return currentStep; }
+});
 animate();
 
 /* ============================================================
@@ -92,6 +101,12 @@ function initThree() {
   window.__carGroup = carGroup;
   window.camera = camera;
   window.scene = scene;
+
+  window.__currentCarPos = currentCarPos;
+  window.__currentCarRot = currentCarRot;
+  window.__currentCamPos = currentCamPos;
+  window.__currentLookAt = currentLookAt;
+  window.__currentFov = currentFov;
 }
 
 /* ============================================================
@@ -592,6 +607,10 @@ function startIntroSequence() {
    SCENE STEP POSES (HERO -> WASH -> POLISH -> COCKPIT -> STUDIO)
    ============================================================ */
 function getStepPose(step) {
+  if (window.__tunerOverrides && window.__tunerOverrides[step]) {
+    return window.__tunerOverrides[step];
+  }
+
   var w = window.innerWidth;
   var isDesktop = w > 900;
   var isMobile = w <= 580;
@@ -934,6 +953,10 @@ function animate() {
   var isInterior = (raw >= 2.4 && raw <= 3.6);
   var horizSens = isInterior ? 0.025 : 0.14;
   var vertSens  = isInterior ? 0.015 : 0.045;
+  if (window.__tunerActive) {
+    horizSens = 0;
+    vertSens = 0;
+  }
 
   camera.position.set(
     currentCamPos.x + mouse.x * horizSens,
