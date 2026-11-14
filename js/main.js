@@ -611,66 +611,64 @@ function getStepPose(step) {
     return window.__tunerOverrides[step];
   }
 
-  var w = window.innerWidth;
-  var isDesktop = w > 900;
-  var isMobile = w <= 580;
+  var isDesktop = window.innerWidth > 900;
 
   switch (step) {
-    case 0: // HERO: Space orbit (Size verified as good)
+    case 0: // HERO: Space orbit
       return {
-        carPos: new THREE.Vector3(isDesktop ? -1.22 : 0, isDesktop ? 0.36 : 1.20, isDesktop ? 2.4 : 1.85),
+        carPos: new THREE.Vector3(isDesktop ? -1.22 : 0.00, isDesktop ? 0.36 : 1.20, isDesktop ? 2.40 : 1.85),
         carRot: new THREE.Euler(0.94, 0.46, -0.44),
-        camPos: new THREE.Vector3(0, 0, 7.5),
-        lookAt: new THREE.Vector3(isDesktop ? -0.48 : 0, isDesktop ? 0.15 : 0.38, 0),
+        camPos: new THREE.Vector3(0.00, 0.00, 7.50),
+        lookAt: new THREE.Vector3(isDesktop ? -0.48 : 0.00, isDesktop ? 0.15 : 0.38, 0.00),
         fov: 35,
         studioFade: 0.0,
         headlights: 0.0,
         washFade: 0.0
       };
 
-    case 1: // 01 WASH: Detailing bay with full-width water (Car turned to the right under same angle, 100% inside screen)
+    case 1: // 01 WASH
       return {
-        carPos: new THREE.Vector3(isDesktop ? -0.95 : 0.0, isDesktop ? 0.72 : 1.05, isDesktop ? 2.2 : 1.8),
-        carRot: new THREE.Euler(0.0, -0.28, 0.0), // Turned to the right under the requested angle
-        camPos: new THREE.Vector3(0.0, isDesktop ? 0.82 : 1.02, isDesktop ? 7.6 : 9.2), // Pulled back safely so car never cuts off
-        lookAt: new THREE.Vector3(isDesktop ? -0.42 : 0.0, isDesktop ? 0.58 : 0.48, 0),
-        fov: isDesktop ? 34 : 33,
+        carPos: new THREE.Vector3(isDesktop ? -1.34 : -0.18, isDesktop ? 0.72 : 0.86, isDesktop ? 2.20 : 1.80),
+        carRot: new THREE.Euler(0.00, isDesktop ? 0.78 : 0.28, 0.00),
+        camPos: new THREE.Vector3(0.00, isDesktop ? 0.82 : 1.02, isDesktop ? 6.60 : 8.60),
+        lookAt: new THREE.Vector3(isDesktop ? -0.42 : 0.00, isDesktop ? 0.54 : 0.70, isDesktop ? -0.30 : 0.00),
+        fov: isDesktop ? 18 : 33,
         studioFade: 1.0,
         headlights: 0.0,
         washFade: 1.0
       };
 
-    case 2: // 02 POLISH: Focus on rear wheel on mobile, car lifted up on desktop, 100% inside viewport
+    case 2: // 02 POLISH
       return {
-        carPos: new THREE.Vector3(isDesktop ? -1.65 : (isMobile ? -1.40 : -1.25), isDesktop ? 1.26 : 1.08, isDesktop ? 3.35 : 2.25), // Lifted up on desktop
-        carRot: new THREE.Euler(0.0, -0.42, 0.0), // Flank angle highlighting rear wheel arch and wheel
-        camPos: new THREE.Vector3(isDesktop ? -0.25 : (isMobile ? -0.32 : -0.15), isDesktop ? 1.20 : 1.02, isMobile ? 5.1 : 4.6), // Scaled cleanly to fit mobile
-        lookAt: new THREE.Vector3(isDesktop ? -0.95 : (isMobile ? -0.92 : -0.75), isDesktop ? 1.05 : 0.65, 0),
-        fov: 36,
+        carPos: new THREE.Vector3(isDesktop ? -1.65 : -1.48, isDesktop ? 1.30 : 1.08, isDesktop ? 3.15 : 2.25),
+        carRot: new THREE.Euler(0.00, -0.42, 0.00),
+        camPos: new THREE.Vector3(isDesktop ? -0.20 : -0.32, isDesktop ? 1.20 : 1.02, isDesktop ? 4.35 : 5.10),
+        lookAt: new THREE.Vector3(isDesktop ? -0.95 : -0.92, isDesktop ? 1.05 : 0.65, 0.00),
+        fov: isDesktop ? 28 : 36,
         studioFade: 1.0,
         headlights: 0.0,
         washFade: 0.0
       };
 
-    case 3: // 03 INTERIOR: Camera flies authentically INSIDE cockpit across driver seat & dashboard
+    case 3: // 03 INTERIOR
       return {
-        carPos: new THREE.Vector3(isDesktop ? -0.65 : 0.0, isDesktop ? 0.12 : 0.52, isDesktop ? 2.2 : 1.8),
-        carRot: new THREE.Euler(0.0, 0.16, 0.0),
-        camPos: new THREE.Vector3(isDesktop ? -0.84 : -0.22, isDesktop ? 0.22 : 0.68, isDesktop ? 2.32 : 1.80), // Authentic cabin interior
-        lookAt: new THREE.Vector3(isDesktop ? -0.32 : 0.15, isDesktop ? 0.08 : 0.45, isDesktop ? 1.35 : 1.05),
-        fov: isDesktop ? 66 : 68,
+        carPos: new THREE.Vector3(isDesktop ? -0.56 : 0.16, isDesktop ? 0.28 : 0.72, isDesktop ? 1.90 : 1.20),
+        carRot: new THREE.Euler(0.00, isDesktop ? -0.16 : 0.40, isDesktop ? 0.00 : 0.01),
+        camPos: new THREE.Vector3(isDesktop ? -0.84 : 0.10, isDesktop ? 0.22 : 0.68, isDesktop ? 2.20 : 1.60),
+        lookAt: new THREE.Vector3(isDesktop ? -0.32 : 0.15, isDesktop ? 0.08 : 0.45, isDesktop ? 1.35 : 0.50),
+        fov: isDesktop ? 90 : 82,
         studioFade: 1.0,
         headlights: 0.0,
         washFade: 0.0
       };
 
-    case 4: // 04 STUDIO & LOCATION: Strictly 180° REAR view, scaled down for 360px phones and lowered right above text
+    case 4: // 04 STUDIO & LOCATION: Strictly 180° REAR view, locked and centered
     default:
       return {
-        carPos: new THREE.Vector3(0, isDesktop ? 0.55 : 0.38, isDesktop ? 2.0 : 1.85),
-        carRot: new THREE.Euler(0.0, Math.PI, 0.0), // Exact 180° - strictly and symmetrically rear-facing
-        camPos: new THREE.Vector3(0, isDesktop ? 0.60 : 0.42, isDesktop ? 6.8 : 8.8),
-        lookAt: new THREE.Vector3(0, isDesktop ? 0.25 : 0.18, 0),
+        carPos: new THREE.Vector3(0.00, isDesktop ? 0.55 : 0.38, isDesktop ? 2.00 : 1.85),
+        carRot: new THREE.Euler(0.00, Math.PI, 0.00), // Exact 180° - strictly and symmetrically rear-facing
+        camPos: new THREE.Vector3(0.00, isDesktop ? 0.60 : 0.42, isDesktop ? 6.80 : 8.80),
+        lookAt: new THREE.Vector3(0.00, isDesktop ? 0.25 : 0.18, 0.00),
         fov: isDesktop ? 34 : 36,
         studioFade: 1.0,
         headlights: 1.0,
@@ -950,12 +948,17 @@ function animate() {
   camera.updateProjectionMatrix();
 
   // Camera parallax sensitivity: strictly damped in cockpit (Step 3) so camera NEVER touches windshield or A-pillar
+  // On mobile at Step 4 (Studio), strictly ZERO sensitivity so car stands perfectly still and does not react to finger touch
   var isInterior = (raw >= 2.4 && raw <= 3.6);
-  var horizSens = isInterior ? 0.025 : 0.14;
-  var vertSens  = isInterior ? 0.015 : 0.045;
-  if (window.__tunerActive) {
-    horizSens = 0;
-    vertSens = 0;
+  var isFinalMobile = (!isDesktop && raw >= 3.65);
+  var horizSens = (isFinalMobile || window.__tunerActive) ? 0 : (isInterior ? 0.025 : 0.14);
+  var vertSens  = (isFinalMobile || window.__tunerActive) ? 0 : (isInterior ? 0.015 : 0.045);
+
+  if (isFinalMobile) {
+    mouse.x = 0;
+    mouse.y = 0;
+    mouse.targetX = 0;
+    mouse.targetY = 0;
   }
 
   camera.position.set(
