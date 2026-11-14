@@ -14,6 +14,7 @@ var orbitalEarthGroup, earthMesh;
 var starsDeep, starsMid, starsNear;
 var floorMesh, contactShadow, studioCeilingLight, studioAmbientLight;
 var polishSpotLight, washBayLight, waterStreams, waterVelArr;
+var aeroSmokeGroup, aeroSmokeParticles, aeroSmokeLines, aeroSmokeMat, aeroLinesMat, aeroGeo, aeroParticleData, aeroSamples, aeroPositions, aeroColors;
 var headlightMat, frontLensMat, rearLightMat;
 var carModelTireOffset = -0.56;
 
@@ -60,7 +61,7 @@ initDeepCosmosWithLayers();
 initCinematicSunlight();
 initPhotorealisticOrbitalEarth();
 initStudioEnvironment();
-initWaterWashStreams();
+initAerodynamicWindTunnelSmoke();
 loadFerrariF40();
 initScrollAndInteractions();
 initTuner({
@@ -377,44 +378,169 @@ function initStudioEnvironment() {
 }
 
 /* ============================================================
-   PROCEDURAL DETAILING WATER WASH STREAMS (STEP 1)
+   AERODYNAMIC WIND TUNNEL SMOKE STREAMS (STEP 1: AERO WASH)
+   Contour-hugging streamlines starting on hood, wrapping over roof & wing, vortexing into wake
    ============================================================ */
-function initWaterWashStreams() {
-  var streamCount = 420;
-  var positions = new Float32Array(streamCount * 6);
-  waterVelArr = new Float32Array(streamCount);
+function initAerodynamicWindTunnelSmoke() {
+  aeroSmokeGroup = new THREE.Group();
+  aeroSmokeGroup.visible = false;
+  carGroup.add(aeroSmokeGroup);
 
-  // Full-width atmospheric detailing rain canopy
-  for (var i = 0; i < streamCount; i++) {
-    var x = (Math.random() - 0.5) * 11.0;
-    var y = 0.4 + Math.random() * 4.2;
-    var z = 3.0 + (Math.random() - 0.5) * 5.0;
-    var len = 0.22 + Math.random() * 0.32;
+  // Soft circular smoke puff texture (zero square pixels)
+  var smokeCanvas = document.createElement('canvas');
+  smokeCanvas.width = 64;
+  smokeCanvas.height = 64;
+  var sCtx = smokeCanvas.getContext('2d');
+  var sGrad = sCtx.createRadialGradient(32, 32, 0, 32, 32, 32);
+  sGrad.addColorStop(0.0, 'rgba(255, 255, 255, 1.0)');
+  sGrad.addColorStop(0.2, 'rgba(240, 248, 255, 0.85)');
+  sGrad.addColorStop(0.55, 'rgba(215, 235, 255, 0.28)');
+  sGrad.addColorStop(1.0, 'rgba(0, 0, 0, 0)');
+  sCtx.fillStyle = sGrad;
+  sCtx.fillRect(0, 0, 64, 64);
+  var smokeTex = new THREE.CanvasTexture(smokeCanvas);
 
-    positions[i * 6]     = x;
-    positions[i * 6 + 1] = y;
-    positions[i * 6 + 2] = z;
+  // Define 24 aerodynamic streamlines wrapping Ferrari F40 body
+  var rawCurves = [];
 
-    positions[i * 6 + 3] = x;
-    positions[i * 6 + 4] = y - len;
-    positions[i * 6 + 5] = z;
-
-    waterVelArr[i] = 0.08 + Math.random() * 0.14;
+  // 1. Center Hood / Windshield / Roof / Engine Louvre / Wing Streams (8 streams)
+  var centerOffsets = [-0.34, -0.24, -0.14, -0.05, 0.05, 0.14, 0.24, 0.34];
+  for (var i = 0; i < centerOffsets.length; i++) {
+    var x = centerOffsets[i];
+    rawCurves.push(new THREE.CatmullRomCurve3([
+      new THREE.Vector3(x, 0.08, 1.15),           // Starts smoothly on hood (never in front of car!)
+      new THREE.Vector3(x, 0.18, 0.70),           // Hood slope
+      new THREE.Vector3(x * 0.92, 0.44, 0.20),    // Windshield climb
+      new THREE.Vector3(x * 0.88, 0.53, -0.30),   // Roof apex
+      new THREE.Vector3(x * 0.88, 0.48, -0.65),   // Roof rear edge
+      new THREE.Vector3(x * 0.92, 0.36, -1.05),   // Rear louvres
+      new THREE.Vector3(x, 0.58, -1.45),          // Elevated F40 rear wing!
+      new THREE.Vector3(x * 1.15, 0.54, -2.10),   // Wake trail
+      new THREE.Vector3(x * 1.30, 0.48, -3.20)    // Wake dissipation
+    ]));
   }
 
-  var geo = new THREE.BufferGeometry();
-  geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+  // 2. Mid Hood / A-Pillars / Side Window Crests (6 streams)
+  var midOffsets = [-0.50, -0.42, -0.35, 0.35, 0.42, 0.50];
+  for (var j = 0; j < midOffsets.length; j++) {
+    var mx = midOffsets[j];
+    rawCurves.push(new THREE.CatmullRomCurve3([
+      new THREE.Vector3(mx, 0.10, 1.05),          // Hood outer edge
+      new THREE.Vector3(mx * 1.05, 0.18, 0.60),   // Front fender crest
+      new THREE.Vector3(mx * 0.98, 0.36, 0.10),   // A-pillar base
+      new THREE.Vector3(mx * 0.96, 0.47, -0.35),  // Side window top
+      new THREE.Vector3(mx * 1.02, 0.38, -0.80),  // C-pillar
+      new THREE.Vector3(mx * 1.08, 0.50, -1.35),  // Inner wing mount
+      new THREE.Vector3(mx * 1.25, 0.50, -2.20),  // Vortex trail
+      new THREE.Vector3(mx * 1.45, 0.44, -3.25)
+    ]));
+  }
 
-  var mat = new THREE.LineBasicMaterial({
-    color: 0xffffff,
+  // 3. Flanks, Front Wheel Arches & Side NACA Intake Ducts (6 streams)
+  var flankOffsets = [-0.68, -0.62, -0.56, 0.56, 0.62, 0.68];
+  for (var k = 0; k < flankOffsets.length; k++) {
+    var fx = flankOffsets[k];
+    rawCurves.push(new THREE.CatmullRomCurve3([
+      new THREE.Vector3(fx, 0.04, 0.95),          // Front fender start
+      new THREE.Vector3(fx * 1.02, 0.12, 0.40),   // Over front tire arch
+      new THREE.Vector3(fx * 1.04, 0.18, -0.20),  // Door waistline
+      new THREE.Vector3(fx * 1.08, 0.22, -0.70),  // Into side NACA scoop!
+      new THREE.Vector3(fx * 1.15, 0.34, -1.15),  // Over muscular rear hip
+      new THREE.Vector3(fx * 1.20, 0.56, -1.45),  // Outer wing endplate
+      new THREE.Vector3(fx * 1.35, 0.52, -2.25),  // Wingtip vortex
+      new THREE.Vector3(fx * 1.55, 0.44, -3.30)
+    ]));
+  }
+
+  // 4. Low Sills & Side Diffusers (4 streams)
+  var sillOffsets = [-0.74, -0.68, 0.68, 0.74];
+  for (var m = 0; m < sillOffsets.length; m++) {
+    var sx = sillOffsets[m];
+    rawCurves.push(new THREE.CatmullRomCurve3([
+      new THREE.Vector3(sx, -0.16, 0.80),         // Low side skirt start
+      new THREE.Vector3(sx, -0.16, 0.00),         // Mid skirt
+      new THREE.Vector3(sx * 1.04, -0.14, -0.80), // Rear intake base
+      new THREE.Vector3(sx * 1.08, -0.10, -1.50), // Rear tire wake
+      new THREE.Vector3(sx * 1.15, -0.04, -2.50)  // Diffuser outflow
+    ]));
+  }
+
+  // Pre-sample 250 high-precision points along each curve (zero runtime GC)
+  aeroSamples = [];
+  var linePositions = [];
+  for (var c = 0; c < rawCurves.length; c++) {
+    var pts = rawCurves[c].getPoints(250);
+    aeroSamples.push(pts);
+
+    // Build glowing aerodynamic tracer lines
+    for (var p = 0; p < pts.length - 1; p++) {
+      linePositions.push(pts[p].x, pts[p].y, pts[p].z);
+      linePositions.push(pts[p + 1].x, pts[p + 1].y, pts[p + 1].z);
+    }
+  }
+
+  // Static glowing aerodynamic streamline guide rails (Wind-tunnel laser tracks)
+  var lineGeo = new THREE.BufferGeometry();
+  lineGeo.setAttribute('position', new THREE.Float32BufferAttribute(linePositions, 3));
+  aeroLinesMat = new THREE.LineBasicMaterial({
+    color: 0x99ccff,
     transparent: true,
     opacity: 0.0,
     blending: THREE.AdditiveBlending,
     depthWrite: false
   });
+  aeroSmokeLines = new THREE.LineSegments(lineGeo, aeroLinesMat);
+  aeroSmokeGroup.add(aeroSmokeLines);
 
-  waterStreams = new THREE.LineSegments(geo, mat);
-  scene.add(waterStreams);
+  // Dynamic Wind Tunnel Smoke Particles (1800 aerodynamic vapor particles)
+  var particleCount = 1800;
+  aeroParticleData = [];
+  aeroPositions = new Float32Array(particleCount * 3);
+  aeroColors = new Float32Array(particleCount * 3);
+
+  for (var n = 0; n < particleCount; n++) {
+    var curveIdx = n % rawCurves.length;
+    var initT = Math.random();
+    var speed = 0.36 + Math.random() * 0.18;
+    var phase = Math.random() * Math.PI * 2;
+    var lateralOffset = (Math.random() - 0.5) * 0.025;
+
+    aeroParticleData.push({
+      curve: curveIdx,
+      t: initT,
+      speed: speed,
+      phase: phase,
+      offset: lateralOffset
+    });
+
+    var pt = aeroSamples[curveIdx][Math.floor(initT * 249)];
+    aeroPositions[n * 3]     = pt.x + lateralOffset;
+    aeroPositions[n * 3 + 1] = pt.y;
+    aeroPositions[n * 3 + 2] = pt.z;
+
+    aeroColors[n * 3]     = 1.0;
+    aeroColors[n * 3 + 1] = 1.0;
+    aeroColors[n * 3 + 2] = 1.0;
+  }
+
+  aeroGeo = new THREE.BufferGeometry();
+  aeroGeo.setAttribute('position', new THREE.BufferAttribute(aeroPositions, 3));
+  aeroGeo.setAttribute('color', new THREE.BufferAttribute(aeroColors, 3));
+
+  aeroSmokeMat = new THREE.PointsMaterial({
+    size: 0.14,
+    map: smokeTex,
+    vertexColors: true,
+    transparent: true,
+    opacity: 0.0,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
+    sizeAttenuation: true
+  });
+  aeroSmokeMat.fog = false;
+
+  aeroSmokeParticles = new THREE.Points(aeroGeo, aeroSmokeMat);
+  aeroSmokeGroup.add(aeroSmokeParticles);
 }
 
 /* ============================================================
@@ -1014,14 +1140,52 @@ function animate() {
       starsNear.visible = true;
     }
 
-    // 1. CASCADING WATER STREAMS & CLEANROOM LIGHT (ACTIVE ON STEP 1: WASH)
-    // 100% GPU-native transform: zero CPU looping and zero buffer uploads
-    if (waterStreams && waterStreams.material) {
+    // 1. AERODYNAMIC WIND TUNNEL SMOKE STREAMS (ACTIVE ON STEP 1: WASH / AERO DRY)
+    if (aeroSmokeGroup && aeroSmokeMat) {
       var isWashActive = (targetWash > 0.005);
-      waterStreams.visible = isWashActive;
-      waterStreams.material.opacity = targetWash * 0.85;
-      if (isWashActive) {
-        waterStreams.position.y = -((elapsedTime * 4.8) % 0.85);
+      aeroSmokeGroup.visible = isWashActive;
+      aeroSmokeMat.opacity = targetWash * 0.95;
+      if (aeroLinesMat) aeroLinesMat.opacity = targetWash * 0.22;
+
+      if (isWashActive && aeroParticleData && aeroPositions) {
+        var dt = 0.016;
+        for (var i = 0; i < aeroParticleData.length; i++) {
+          var p = aeroParticleData[i];
+          p.t = (p.t + dt * p.speed) % 1.0;
+
+          var sampleIdx = Math.min(249, Math.floor(p.t * 250));
+          var pt = aeroSamples[p.curve][sampleIdx];
+
+          // Realistic aerodynamic wake vortices behind rear wing (t > 0.68)
+          var vortexAmp = (p.t > 0.68) ? (p.t - 0.68) * 0.16 : 0;
+          var curlX = Math.sin(p.t * 24 + elapsedTime * 7 + p.phase) * vortexAmp;
+          var curlY = Math.cos(p.t * 24 + elapsedTime * 7 + p.phase) * (vortexAmp * 0.6);
+
+          aeroPositions[i * 3]     = pt.x + p.offset + curlX;
+          aeroPositions[i * 3 + 1] = pt.y + curlY;
+          aeroPositions[i * 3 + 2] = pt.z;
+
+          // Smooth aerodynamic opacity ramp:
+          // 0 -> 1 on front hood (t < 0.14) (Zero sudden wall, organic emission)
+          // 1.0 over car body (0.14 <= t <= 0.75)
+          // 1 -> 0 dispersing behind car (t > 0.75)
+          var alpha = 1.0;
+          if (p.t < 0.14) {
+            alpha = p.t / 0.14;
+          } else if (p.t > 0.75) {
+            alpha = Math.max(0, 1.0 - (p.t - 0.75) / 0.25);
+          }
+
+          var brightness = alpha * targetWash;
+          aeroColors[i * 3]     = brightness * 0.94;
+          aeroColors[i * 3 + 1] = brightness * 0.97;
+          aeroColors[i * 3 + 2] = brightness * 1.0;
+        }
+
+        if (aeroGeo && aeroGeo.attributes) {
+          if (aeroGeo.attributes.position) aeroGeo.attributes.position.needsUpdate = true;
+          if (aeroGeo.attributes.color) aeroGeo.attributes.color.needsUpdate = true;
+        }
       }
     }
     if (washBayLight && washBayLight.target) {
