@@ -964,10 +964,18 @@ function skipIntroIfActive() {
     currentCarRot.copy(rest.carRot);
     currentCamPos.copy(rest.camPos);
     currentLookAt.copy(rest.lookAt);
+    if (carGroup) {
+      carGroup.position.copy(rest.carPos);
+      carGroup.rotation.copy(rest.carRot);
+      carGroup.scale.set(1, 1, 1);
+      carGroup.visible = true;
+    }
     if (heroContent) {
       heroContent.classList.remove('hero-hidden');
       heroContent.classList.add('hero-visible');
     }
+    var curtain = document.getElementById('sceneCurtain');
+    if (curtain) curtain.classList.add('loaded');
     triggerFlickerIn(brandOverlay);
   }
 }
@@ -984,16 +992,17 @@ function startIntroSequence() {
     currentFov.value = rest.fov;
     currentStudioFade.value = 0;
 
-    // F40 glides in gracefully from deep space (-28 units)
-    currentCarPos.set(rest.carPos.x + 0.35, rest.carPos.y + 0.85, -28.0);
+    // F40 glides in gracefully across the orbital plane IN FRONT of Earth (Earth is at z = -22.0)
+    currentCarPos.set(rest.carPos.x + 3.4, rest.carPos.y + 1.8, -4.5);
     currentCarRot.set(
-      rest.carRot.x + 0.65,
-      rest.carRot.y + 1.25,
-      rest.carRot.z - 0.45
+      rest.carRot.x + 0.38,
+      rest.carRot.y + 0.72,
+      rest.carRot.z - 0.24
     );
 
     carGroup.position.copy(currentCarPos);
     carGroup.rotation.copy(currentCarRot);
+    carGroup.scale.set(0.55, 0.55, 0.55);
     carGroup.visible = true;
 
     // Earth is solid and fully visible immediately
@@ -1003,6 +1012,12 @@ function startIntroSequence() {
     }
     if (earthMesh && earthMesh.material) {
       earthMesh.material.opacity = 1.0;
+    }
+
+    // Lift the curtain smoothly to reveal the cosmos and Earth
+    var curtain = document.getElementById('sceneCurtain');
+    if (curtain) {
+      setTimeout(function() { curtain.classList.add('loaded'); }, 50);
     }
 
     // Strict lock: text hidden initially, flickers in concurrently during landing
@@ -1022,27 +1037,49 @@ function startIntroSequence() {
         currentCarRot.copy(rest.carRot);
         currentCamPos.copy(rest.camPos);
         currentLookAt.copy(rest.lookAt);
+        if (carGroup) carGroup.scale.set(1, 1, 1);
       }
     });
 
-    // F40 glides into orbit cleanly without camera jumping or jitter
+    // F40 glides into orbit cleanly: position, rotation, and scale smoothly converge
     introTimeline.to(currentCarPos, {
       x: rest.carPos.x,
       y: rest.carPos.y,
       z: rest.carPos.z,
-      duration: 2.2,
-      ease: 'power3.out'
+      duration: 2.3,
+      ease: 'power2.out'
     }, 0);
 
     introTimeline.to(currentCarRot, {
       x: rest.carRot.x,
       y: rest.carRot.y,
       z: rest.carRot.z,
-      duration: 2.2,
-      ease: 'power3.out'
+      duration: 2.3,
+      ease: 'power2.out'
     }, 0);
 
-    // Text flickers in only once the car has arrived into orbit
+    introTimeline.to(carGroup.scale, {
+      x: 1.0,
+      y: 1.0,
+      z: 1.0,
+      duration: 2.3,
+      ease: 'power2.out'
+    }, 0);
+
+    // Front lens flash when docking into orbit
+    introTimeline.add(function() {
+      if (frontLensMat) {
+        gsapInst.to(frontLensMat, {
+          emissiveIntensity: 2.8,
+          duration: 0.35,
+          yoyo: true,
+          repeat: 1,
+          ease: 'power1.inOut'
+        });
+      }
+    }, 1.4);
+
+    // Text flickers in as car docks into orbit
     introTimeline.add(function() {
       if (heroContent) {
         heroContent.classList.remove('hero-hidden');
@@ -1282,9 +1319,6 @@ function initScrollAndInteractions() {
   // Touch Drag & Swipe (STRICT DEBOUNCE)
   var touchStartY = 0;
   window.addEventListener('touchstart', function(e) {
-    if (isIntroActive) {
-      skipIntroIfActive();
-    }
     if (e.touches && e.touches.length > 0) {
       touchStartY = e.touches[0].clientY;
       var touch = e.touches[0];
@@ -1302,9 +1336,6 @@ function initScrollAndInteractions() {
   }, { passive: true });
 
   window.addEventListener('touchend', function(e) {
-    if (isIntroActive) {
-      skipIntroIfActive();
-    }
     if (isStepAnimating || wheelCooldown) return;
     if (!e.changedTouches || e.changedTouches.length === 0) return;
     var touchEndY = e.changedTouches[0].clientY;

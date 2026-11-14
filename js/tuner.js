@@ -4,6 +4,12 @@
  */
 
 export function initTuner(options) {
+  var isDebug = window.location.search.includes('debug=1');
+  if (!isDebug) {
+    return; // Strictly hidden in production unless ?debug=1 is set
+  }
+  document.body.classList.add('debug-mode');
+
   var THREE = options.THREE;
   var camera = options.camera;
   var carGroup = options.carGroup;

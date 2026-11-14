@@ -351,10 +351,28 @@ html, body {
   font-size: 10px;
 }
 
+/* Cinematic Initial Load Curtain */
+.scene-curtain {
+  position: fixed;
+  inset: 0;
+  background: #040406;
+  z-index: 99998;
+  pointer-events: none;
+  opacity: 1;
+  transition: opacity 0.9s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.scene-curtain.loaded {
+  opacity: 0;
+}
+
+/* Hyperjump button strictly hidden in production, active only if ?debug=1 */
 .hyperjump-wrap {
   margin-top: 20px;
-  display: flex;
+  display: none !important;
   justify-content: center;
+}
+body.debug-mode .hyperjump-wrap {
+  display: flex !important;
 }
 
 .hyperjump-btn {
