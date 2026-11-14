@@ -303,39 +303,14 @@ function createContactShadowTexture() {
 }
 
 /* ============================================================
-   MINIMALIST STUDIO ENVIRONMENT
+   MINIMALIST STUDIO LIGHTING (DEEP SPACE DETAILING PAVILION)
    ============================================================ */
 function initStudioEnvironment() {
-  // 1. Sleek Smoked Glass Orbital Platform (Reflective, semi-translucent, reveals Earth below)
-  var floorGeo = new THREE.PlaneGeometry(60, 60);
-  var floorMat = new THREE.MeshStandardMaterial({
-    map: createStudioFloorTexture(),
-    alphaMap: createFloorAlphaMap(),
-    color: 0x07090c,
-    roughness: 0.14,
-    metalness: 0.88,
-    transparent: true,
-    opacity: 0.0
-  });
-  floorMesh = new THREE.Mesh(floorGeo, floorMat);
-  floorMesh.rotation.x = -Math.PI / 2;
-  floorMesh.position.y = -0.56; // Ground plane sits flush under tires
-  scene.add(floorMesh);
+  // Pure open space: zero hazy floor planes or artificial stripes floating under the car
+  floorMesh = null;
+  contactShadow = null;
 
-  // 2. Soft Contact Ground Shadow under the car
-  var shadowGeo = new THREE.PlaneGeometry(5.4, 3.0);
-  var shadowMat = new THREE.MeshBasicMaterial({
-    map: createContactShadowTexture(),
-    transparent: true,
-    opacity: 0.0,
-    depthWrite: false
-  });
-  contactShadow = new THREE.Mesh(shadowGeo, shadowMat);
-  contactShadow.rotation.x = -Math.PI / 2;
-  contactShadow.position.y = -0.555; // 5mm above floor
-  scene.add(contactShadow);
-
-  // 3. Studio Overhead Directional Soft Light & Ambient (Pure White)
+  // 1. Studio Overhead Directional Soft Light & Ambient (Pure White)
   studioCeilingLight = new THREE.DirectionalLight(0xffffff, 0);
   studioCeilingLight.position.set(0, 8, 3);
   scene.add(studioCeilingLight);
@@ -343,13 +318,13 @@ function initStudioEnvironment() {
   studioAmbientLight = new THREE.AmbientLight(0xffffff, 0);
   scene.add(studioAmbientLight);
 
-  // 4. Wash Bay Crisp Top Cleanroom Light (Step 1)
+  // 2. Wash Bay Crisp Top Cleanroom Light (Step 1)
   washBayLight = new THREE.SpotLight(0xffffff, 0, 18, Math.PI / 4, 0.6);
   washBayLight.position.set(-2.2, 5.5, 2.5);
   scene.add(washBayLight);
   scene.add(washBayLight.target);
 
-  // 5. Polishing Flank Inspection Spotlight (Step 2)
+  // 3. Polishing Flank Inspection Spotlight (Step 2)
   polishSpotLight = new THREE.SpotLight(0xffffff, 0, 16, Math.PI / 6, 0.35);
   polishSpotLight.position.set(-3.5, 1.8, 4.5);
   scene.add(polishSpotLight);
@@ -360,15 +335,16 @@ function initStudioEnvironment() {
    PROCEDURAL DETAILING WATER WASH STREAMS (STEP 1)
    ============================================================ */
 function initWaterWashStreams() {
-  var streamCount = 320;
+  var streamCount = 420;
   var positions = new Float32Array(streamCount * 6);
   waterVelArr = new Float32Array(streamCount);
 
+  // Full-width atmospheric detailing rain canopy
   for (var i = 0; i < streamCount; i++) {
-    var x = -1.45 + (Math.random() - 0.5) * 2.8;
-    var y = 0.2 + Math.random() * 3.6;
-    var z = 3.1 + (Math.random() - 0.5) * 3.6;
-    var len = 0.2 + Math.random() * 0.25;
+    var x = (Math.random() - 0.5) * 11.0;
+    var y = 0.4 + Math.random() * 4.2;
+    var z = 3.0 + (Math.random() - 0.5) * 5.0;
+    var len = 0.22 + Math.random() * 0.32;
 
     positions[i * 6]     = x;
     positions[i * 6 + 1] = y;
@@ -378,7 +354,7 @@ function initWaterWashStreams() {
     positions[i * 6 + 4] = y - len;
     positions[i * 6 + 5] = z;
 
-    waterVelArr[i] = 0.07 + Math.random() * 0.12;
+    waterVelArr[i] = 0.08 + Math.random() * 0.14;
   }
 
   var geo = new THREE.BufferGeometry();
@@ -593,61 +569,61 @@ function getStepPose(step) {
   var isDesktop = window.innerWidth > 900;
 
   switch (step) {
-    case 0: // HERO: Space orbit (Desktop car moved further to the left)
+    case 0: // HERO: Space orbit
       return {
-        carPos: new THREE.Vector3(isDesktop ? -1.22 : 0, isDesktop ? 0.36 : 0.98, isDesktop ? 2.4 : 1.9),
+        carPos: new THREE.Vector3(isDesktop ? -1.22 : 0, isDesktop ? 0.36 : 1.20, isDesktop ? 2.4 : 1.85),
         carRot: new THREE.Euler(0.94, 0.46, -0.44),
         camPos: new THREE.Vector3(0, 0, 7.5),
-        lookAt: new THREE.Vector3(isDesktop ? -0.48 : 0, 0.15, 0),
+        lookAt: new THREE.Vector3(isDesktop ? -0.48 : 0, isDesktop ? 0.15 : 0.38, 0),
         fov: 35,
         studioFade: 0.0,
         headlights: 0.0,
         washFade: 0.0
       };
 
-    case 1: // 01 WASH: Detailing bay with cascading water (Shifted slightly right as requested)
+    case 1: // 01 WASH: Detailing bay with full-width cascading water (Shifted left and raised high above text on mobile)
       return {
-        carPos: new THREE.Vector3(isDesktop ? -0.85 : 0, isDesktop ? 0.65 : 0.90, isDesktop ? 3.1 : 2.4),
+        carPos: new THREE.Vector3(isDesktop ? -1.35 : -0.75, isDesktop ? 0.78 : 1.35, isDesktop ? 3.1 : 2.3),
         carRot: new THREE.Euler(0.0, 0.62, 0.0),
-        camPos: new THREE.Vector3(-0.05, isDesktop ? 0.72 : 0.95, 6.2),
-        lookAt: new THREE.Vector3(-0.35, isDesktop ? 0.55 : 0.82, 0),
+        camPos: new THREE.Vector3(isDesktop ? -0.10 : 0, isDesktop ? 0.82 : 1.15, 6.2),
+        lookAt: new THREE.Vector3(isDesktop ? -0.55 : -0.35, isDesktop ? 0.65 : 0.75, 0),
         fov: 35,
         studioFade: 1.0,
         headlights: 0.0,
         washFade: 1.0
       };
 
-    case 2: // 02 POLISH: Diagonal stance, raised higher and moved slightly left to showcase paintwork
+    case 2: // 02 POLISH: Diagonal stance, shifted hard left, zoomed back slightly and elevated high above text
       return {
-        carPos: new THREE.Vector3(isDesktop ? -1.58 : 0, isDesktop ? 0.78 : 0.94, isDesktop ? 3.4 : 2.8),
+        carPos: new THREE.Vector3(isDesktop ? -1.65 : -1.10, isDesktop ? 1.10 : 1.48, isDesktop ? 3.2 : 2.1),
         carRot: new THREE.Euler(0.0, -0.45, 0.0), // Diagonal flank view, nose away
-        camPos: new THREE.Vector3(-0.15, isDesktop ? 0.82 : 0.95, 4.4),
-        lookAt: new THREE.Vector3(-0.85, isDesktop ? 0.70 : 0.88, 0),
-        fov: 36,
+        camPos: new THREE.Vector3(isDesktop ? -0.15 : -0.10, isDesktop ? 1.12 : 1.25, 4.85),
+        lookAt: new THREE.Vector3(isDesktop ? -0.95 : -0.60, isDesktop ? 0.98 : 0.85, 0),
+        fov: 37,
         studioFade: 1.0,
         headlights: 0.0,
         washFade: 0.0
       };
 
-    case 3: // 03 INTERIOR: Cabin view across console & passenger seat with refined vertical alignment
+    case 3: // 03 INTERIOR: Cabin view, camera placed slightly left and further back, elevated above text on mobile
       return {
-        carPos: new THREE.Vector3(isDesktop ? -0.65 : 0, 0.12, isDesktop ? 2.2 : 1.8),
+        carPos: new THREE.Vector3(isDesktop ? -0.65 : -0.35, isDesktop ? 0.18 : 0.68, isDesktop ? 2.2 : 1.8),
         carRot: new THREE.Euler(0.0, 0.16, 0.0),
-        camPos: new THREE.Vector3(isDesktop ? -0.84 : -0.22, 0.22, isDesktop ? 2.32 : 1.80),
-        lookAt: new THREE.Vector3(isDesktop ? -0.32 : 0.15, 0.06, isDesktop ? 1.35 : 1.05),
-        fov: 66,
+        camPos: new THREE.Vector3(isDesktop ? -1.05 : -0.65, isDesktop ? 0.28 : 0.78, isDesktop ? 2.58 : 2.40),
+        lookAt: new THREE.Vector3(isDesktop ? -0.38 : -0.18, isDesktop ? 0.10 : 0.48, isDesktop ? 1.25 : 1.05),
+        fov: isDesktop ? 66 : 68,
         studioFade: 1.0,
         headlights: 0.0,
         washFade: 0.0
       };
 
-    case 4: // 04 STUDIO & LOCATION: Sculpted 3/4 rear stance above footer text with glowing taillights
+    case 4: // 04 STUDIO & LOCATION: Strictly 180° REAR view, elevated high above footer text
     default:
       return {
-        carPos: new THREE.Vector3(0, isDesktop ? 0.58 : 0.62, isDesktop ? 2.2 : 1.85),
-        carRot: new THREE.Euler(0.02, 2.76, 0.0), // Sculpted 3/4 rear view showcasing spoiler, louvers & taillights
-        camPos: new THREE.Vector3(0, 0.60, 6.2),
-        lookAt: new THREE.Vector3(0, 0.26, 0),
+        carPos: new THREE.Vector3(0, isDesktop ? 0.78 : 1.42, isDesktop ? 2.2 : 1.85),
+        carRot: new THREE.Euler(0.0, Math.PI, 0.0), // Exact 180° - strictly and symmetrically rear-facing
+        camPos: new THREE.Vector3(0, isDesktop ? 0.80 : 1.20, 6.2),
+        lookAt: new THREE.Vector3(0, isDesktop ? 0.38 : 0.70, 0),
         fov: 34,
         studioFade: 1.0,
         headlights: 1.0,
@@ -937,32 +913,6 @@ function animate() {
   if (!isIntroActive && carGroup) {
     var sFade = currentStudioFade.value;
 
-    // Ground level sits flush under car tires:
-    var studioGroundY = currentCarPos.y - 0.56;
-
-    // Critical fix for Hero -> Step 1 transition:
-    // Floor & shadow do NOT appear while the car is flipping in space!
-    // They fade in smoothly only as the car levels out and touches down (raw >= 0.70).
-    var floorAlpha = 0;
-    if (raw >= 1.0) {
-      floorAlpha = sFade * 0.94;
-    } else if (raw >= 0.70) {
-      var t = (raw - 0.70) / 0.30;
-      floorAlpha = t * t * 0.94;
-    }
-
-    if (floorMesh) {
-      floorMesh.position.y = studioGroundY;
-      floorMesh.material.opacity = floorAlpha * 0.72; // Translucent smoked glass orbital deck!
-      floorMesh.visible = (floorAlpha > 0.001);
-    }
-    if (contactShadow) {
-      contactShadow.position.x = currentCarPos.x;
-      contactShadow.position.z = currentCarPos.z;
-      contactShadow.position.y = studioGroundY + 0.005;
-      contactShadow.material.opacity = floorAlpha * 0.88;
-      contactShadow.visible = (floorAlpha > 0.001);
-    }
     if (studioCeilingLight) {
       studioCeilingLight.intensity = sFade * 3.4;
     }
