@@ -21,9 +21,9 @@ var lightTrailsGroup, lightTrailsMesh, lightTrailsGeo, lightTrailsMat, lightTrai
 var hyperjumpProgress = { value: 0 };
 var hyperjumpCarSurge = { value: 0 };
 var hyperjumpCamChase = { value: 0 };
-var hyperjumpCamAngle = { value: 0 };
 var hyperjumpCarStretch = { value: 1.0 };
-var hyperjumpShake = { value: 0 };
+var hyperjumpSingularity = { opacity: 0, scale: 0, spin: 0 };
+var warpSingularityMesh, warpSingularityMat;
 var isHyperjumpAnimating = false;
 var headlightMat, frontLensMat, rearLightMat;
 var carModelTireOffset = -0.56;
@@ -684,6 +684,67 @@ function initAerodynamicWindTunnelSmoke() {
    HYPERSPACE WARP JUMP SYSTEM (STEP 4 / FINAL SCREEN)
    Relativistic Star Wars lightspeed streaks with deceleration & freeze in 3D deep space
    ============================================================ */
+function createFourPointedStarTexture() {
+  var canvas = document.createElement('canvas');
+  canvas.width = 512;
+  canvas.height = 512;
+  var ctx = canvas.getContext('2d');
+  var cx = 256;
+  var cy = 256;
+
+  ctx.clearRect(0, 0, 512, 512);
+
+  // 1. Intense radial glow at center
+  var gradCenter = ctx.createRadialGradient(cx, cy, 0, cx, cy, 180);
+  gradCenter.addColorStop(0.0, 'rgba(255, 255, 255, 1.0)');
+  gradCenter.addColorStop(0.08, 'rgba(200, 245, 255, 0.95)');
+  gradCenter.addColorStop(0.25, 'rgba(90, 200, 255, 0.65)');
+  gradCenter.addColorStop(0.55, 'rgba(25, 110, 255, 0.22)');
+  gradCenter.addColorStop(1.0, 'rgba(0, 0, 0, 0)');
+  ctx.fillStyle = gradCenter;
+  ctx.beginPath();
+  ctx.arc(cx, cy, 180, 0, Math.PI * 2);
+  ctx.fill();
+
+  // 2. Horizontal sharp diamond beam (left-to-right)
+  var gradH = ctx.createLinearGradient(0, cy, 512, cy);
+  gradH.addColorStop(0.0, 'rgba(70, 190, 255, 0)');
+  gradH.addColorStop(0.35, 'rgba(180, 240, 255, 0.7)');
+  gradH.addColorStop(0.5, 'rgba(255, 255, 255, 1.0)');
+  gradH.addColorStop(0.65, 'rgba(180, 240, 255, 0.7)');
+  gradH.addColorStop(1.0, 'rgba(70, 190, 255, 0)');
+  ctx.fillStyle = gradH;
+  ctx.beginPath();
+  ctx.ellipse(cx, cy, 250, 7, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // 3. Vertical sharp diamond beam (top-to-bottom)
+  var gradV = ctx.createLinearGradient(cx, 0, cx, 512);
+  gradV.addColorStop(0.0, 'rgba(70, 190, 255, 0)');
+  gradV.addColorStop(0.35, 'rgba(180, 240, 255, 0.7)');
+  gradV.addColorStop(0.5, 'rgba(255, 255, 255, 1.0)');
+  gradV.addColorStop(0.65, 'rgba(180, 240, 255, 0.7)');
+  gradV.addColorStop(1.0, 'rgba(70, 190, 255, 0)');
+  ctx.fillStyle = gradV;
+  ctx.beginPath();
+  ctx.ellipse(cx, cy, 7, 250, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // 4. Brilliant bright core diamond
+  ctx.fillStyle = 'rgba(255, 255, 255, 1.0)';
+  ctx.beginPath();
+  ctx.moveTo(cx, cy - 40);
+  ctx.lineTo(cx + 40, cy);
+  ctx.lineTo(cx, cy + 40);
+  ctx.lineTo(cx - 40, cy);
+  ctx.closePath();
+  ctx.fill();
+
+  var tex = new THREE.CanvasTexture(canvas);
+  tex.generateMipmaps = true;
+  return tex;
+}
+
 function initHyperspaceSystem() {
   hyperjumpGroup = new THREE.Group();
   hyperjumpGroup.visible = false;
@@ -781,6 +842,22 @@ function initHyperspaceSystem() {
   // Add to carGroup so trails anchor exactly to the 4 circular rear lamps of the F40
   carGroup.add(lightTrailsMesh);
 
+  // 4-Pointed Spinning Singularity Star (appears directly in front of the car)
+  var starTex = createFourPointedStarTexture();
+  var starGeo = new THREE.PlaneGeometry(6.0, 6.0);
+  warpSingularityMat = new THREE.MeshBasicMaterial({
+    map: starTex,
+    transparent: true,
+    opacity: 0.0,
+    blending: THREE.AdditiveBlending,
+    side: THREE.DoubleSide,
+    depthWrite: false
+  });
+  warpSingularityMat.fog = false;
+  warpSingularityMesh = new THREE.Mesh(starGeo, warpSingularityMat);
+  warpSingularityMesh.visible = false;
+  scene.add(warpSingularityMesh);
+
   var hjBtn = document.getElementById('hyperjumpBtn');
   if (hjBtn) {
     hjBtn.addEventListener('click', function(e) {
@@ -798,7 +875,9 @@ function triggerHyperjump(onDone) {
     onComplete: function() {
       isHyperjumpAnimating = false;
       hyperjumpProgress.value = 0;
-      hyperjumpShake.value = 0;
+      hyperjumpSingularity.opacity = 0;
+      hyperjumpSingularity.scale = 0;
+      if (warpSingularityMesh) warpSingularityMesh.visible = false;
       if (typeof onDone === 'function') onDone();
     }
   });
@@ -807,104 +886,94 @@ function triggerHyperjump(onDone) {
   hyperjumpProgress.value = 0;
   hyperjumpCarSurge.value = 0;
   hyperjumpCamChase.value = 0;
-  hyperjumpCamAngle.value = 0;
   hyperjumpCarStretch.value = 1.0;
-  hyperjumpShake.value = 0;
+  hyperjumpSingularity.opacity = 0;
+  hyperjumpSingularity.scale = 0;
+  hyperjumpSingularity.spin = 0;
+
+  if (warpSingularityMesh) {
+    warpSingularityMesh.position.set(0, 0.55, -12.0);
+    warpSingularityMesh.scale.set(0.01, 0.01, 0.01);
+    warpSingularityMesh.visible = true;
+  }
 
   // ========================================================
-  // PHASE 1: PRE-WARP TENSION & SLINGSHOT CHARGE (0.0 -> 0.70s)
-  // Camera swings to 3/4 shoulder chase angle to expose the full side profile.
-  // FOV pinches, car compresses like a loaded spring, engine rumbles!
+  // STAGE 1: 4-POINTED STAR IGNITION & CAR STRETCHING TOWARDS IT (0.0 -> 1.3s)
+  // Ahead of the car, a 4-pointed star appears, sparkling and spinning rapidly.
+  // The car is drawn towards it and STRETCHES forward in anticipation!
   // ========================================================
-  tl.to(hyperjumpProgress, {
-    value: 0.35,
-    duration: 0.70,
-    ease: 'power1.in'
+  tl.to(hyperjumpSingularity, {
+    opacity: 1.0,
+    duration: 0.35,
+    ease: 'power1.out'
   }, 0);
 
-  tl.to(hyperjumpCamAngle, {
-    value: 1.0,
-    duration: 0.70,
+  tl.to(hyperjumpSingularity, {
+    scale: 2.5,
+    duration: 1.30,
     ease: 'power2.out'
   }, 0);
 
-  // Slingshot squash along Z
+  // Car physically stretches forward towards the spinning star!
   tl.to(hyperjumpCarStretch, {
-    value: 0.86,
-    duration: 0.70,
+    value: 3.20,
+    duration: 1.30,
     ease: 'power2.in'
   }, 0);
 
-  tl.to(hyperjumpShake, {
-    value: 1.0,
-    duration: 0.70,
-    ease: 'power1.in'
-  }, 0);
-
   // ========================================================
-  // PHASE 2: WARP DETONATION & HYPERSPACE LEAP (0.70 -> 1.90s)
-  // DETONATION! Car stretches to 4.2x length into an elongated sci-fi missile!
-  // Car blasts forward 28 meters into deep space!
+  // STAGE 2: РЫВОК & HYPERSPACE BLAST (1.30 -> 2.50s)
+  // Singularity star flashes & detonates!
+  // Violent jolt (РЫВОК) - the car erupts forward into full hyperjump!
   // ========================================================
-  tl.to(hyperjumpProgress, {
-    value: 1.0,
-    duration: 1.20,
-    ease: 'power3.in'
-  }, 0.70);
-
-  tl.to(hyperjumpCarStretch, {
-    value: 4.20,
-    duration: 1.20,
-    ease: 'power2.in'
-  }, 0.70);
-
-  tl.to(hyperjumpShake, {
-    value: 0.0,
+  tl.to(hyperjumpSingularity, {
+    scale: 6.0,
+    opacity: 0.0,
     duration: 0.25,
-    ease: 'power2.out'
-  }, 0.70);
+    ease: 'power3.in'
+  }, 1.30);
 
-  // Car launches 28 meters forward into the cosmos!
+  // Hyperdrive speed lines & laser ribbons fire at maximum speed
+  tl.to(hyperjumpProgress, {
+    value: 1.0,
+    duration: 1.0,
+    ease: 'power3.in'
+  }, 1.30);
+
+  // Car surges forward 28 meters into deep cosmos!
   tl.to(hyperjumpCarSurge, {
     value: 28.0,
     duration: 1.20,
     ease: 'power3.in'
-  }, 0.70);
+  }, 1.30);
 
   // ========================================================
-  // PHASE 3: WARP BREAKOUT & FREEZE (1.90 -> 2.50s)
-  // Car breaks out of hyperspace at -28m! Geometry snaps back to 1.0x with elastic shockwave.
-  // Stars decelerate rapidly right in front of the viewer and freeze as 3D points!
+  // STAGE 3: WARP BREAKOUT & VISIBLE DECELERATION OF STARS (2.50 -> 4.50s)
+  // Car breaks out far ahead, snaps back to 1.0x with elastic shockwave.
+  // Stars visibly and smoothly decelerate (100% -> 60% -> 25% -> 0%) and freeze in 3D space!
   // ========================================================
   tl.to(hyperjumpCarStretch, {
     value: 1.0,
-    duration: 0.60,
+    duration: 0.50,
     ease: 'back.out(2.4)'
-  }, 1.90);
+  }, 2.50);
 
+  // Visible smooth 2-second star braking
   tl.to(hyperjumpProgress, {
     value: 0.0,
-    duration: 1.20,
-    ease: 'power4.out'
-  }, 1.90);
+    duration: 2.0,
+    ease: 'power2.out'
+  }, 2.50);
 
   // ========================================================
-  // PHASE 4: HIGH-SPEED CAMERA CHASE & DOCKING (2.50 -> 4.30s)
-  // Camera boosts forward 28 meters across open space, closing the gap!
-  // Smoothly sweeps back to center directly behind the cruising F40.
-  // The car NEVER reverses! Camera catches up and docks smoothly.
+  // STAGE 4: CAMERA GLIDES FORWARD & DOCKS (3.20 -> 4.80s)
+  // Camera boosts forward 28 meters through the decelerating stars and docks behind the car!
   // ========================================================
   tl.to(hyperjumpCamChase, {
     value: 28.0,
-    duration: 1.80,
+    duration: 1.60,
     ease: 'power3.out'
-  }, 2.50);
-
-  tl.to(hyperjumpCamAngle, {
-    value: 0.0,
-    duration: 1.80,
-    ease: 'power2.inOut'
-  }, 2.50);
+  }, 3.20);
 }
 
 /* ============================================================
@@ -1673,61 +1742,42 @@ function animate() {
       rearLightMat.emissiveIntensity = targetLights * 12.0;
     }
 
+  if (raw >= 3.8 || isHyperjumpAnimating) {
     // 4. STAR WARS HYPERSPACE JUMP & LONG EXPOSURE LIGHT TRAILS (STEP 4)
     var currentWarp = hyperjumpProgress.value;
     var carSurgeZ = hyperjumpCarSurge.value;
     var camChaseZ = hyperjumpCamChase.value;
-    var angleFactor = hyperjumpCamAngle.value;
     var sZ = hyperjumpCarStretch.value;
 
-    // Relativistic car stretching:
-    // When sZ > 1.0, length stretches along Z up to 4.2x!
-    // Width stays at 0.95, height at 0.82 for an aerodynamic, aggressive supersonic wedge!
     if (carGroup) {
       if (sZ > 1.001) {
-        carGroup.scale.set(0.95, 0.82, sZ);
-      } else if (sZ < 0.999) {
-        // Pre-warp slingshot squash
-        carGroup.scale.set(1.05, 1.03, sZ);
+        // Car physically stretches forward along -Z towards the spinning 4-pointed star!
+        carGroup.scale.set(0.95, 0.85, sZ);
       } else {
         carGroup.scale.set(1, 1, 1);
       }
-
-      // Pre-warp engine rumble
-      var shakeX = (hyperjumpShake.value > 0.01) ? (Math.sin(elapsedTime * 95.0) * 0.016 * hyperjumpShake.value) : 0;
-      var shakeY = (hyperjumpShake.value > 0.01) ? (Math.cos(elapsedTime * 85.0) * 0.010 * hyperjumpShake.value) : 0;
-
-      // Position: car moves strictly forward along -Z by carSurgeZ (zero reverse motion!)
       carGroup.position.set(
-        currentCarPos.x + shakeX,
-        currentCarPos.y + shakeY,
+        currentCarPos.x,
+        currentCarPos.y,
         currentCarPos.z - carSurgeZ
       );
     }
 
-    // Dynamic 3/4 shoulder chase angle + forward chase along -Z
-    var shoulderOffsetX = angleFactor * 1.55; // Swing out to the right to see the full stretched side profile!
-    var shoulderOffsetY = angleFactor * 0.48; // Elevate slightly above the rear wing
-
-    // Optical space compression: FOV pinches in Phase 1, blasts open in Phase 2
-    var warpFovBonus = 0;
-    if (sZ < 0.999) {
-      warpFovBonus = (sZ - 1.0) * 20.0; // FOV pinches down to ~28°
-    } else {
-      warpFovBonus = currentWarp * 32.0; // FOV blasts up to 66°!
+    // Camera FOV expansion during warp
+    if (currentWarp > 0.001) {
+      camera.fov = currentFov.value + currentWarp * 28.0;
+      camera.updateProjectionMatrix();
     }
-    camera.fov = currentFov.value + warpFovBonus;
-    camera.updateProjectionMatrix();
 
-    // Camera position:
+    // Camera position: moves forward during catch-up
     var camTargetZ = currentCamPos.z - camChaseZ;
     camera.position.set(
-      currentCamPos.x + shoulderOffsetX + mouse.x * horizSens,
-      currentCamPos.y + shoulderOffsetY - mouse.y * vertSens,
+      currentCamPos.x + mouse.x * horizSens,
+      currentCamPos.y - mouse.y * vertSens,
       camTargetZ
     );
 
-    // Camera lookAt: always tracks the car center in depth!
+    // Camera lookAt: locked onto the car as it surges forward
     var targetLookZ = currentCarPos.z - carSurgeZ;
     camera.lookAt(
       currentCarPos.x,
@@ -1735,7 +1785,20 @@ function animate() {
       targetLookZ
     );
 
-    // 4.1 Update Starfield Hyperdrive Streaks & Deceleration
+    // 4.1 Update 4-Pointed Spinning Singularity Star
+    if (warpSingularityMesh && warpSingularityMat) {
+      if (hyperjumpSingularity.opacity > 0.001) {
+        warpSingularityMesh.visible = true;
+        warpSingularityMat.opacity = hyperjumpSingularity.opacity;
+        var sScale = hyperjumpSingularity.scale * (1.0 + Math.sin(elapsedTime * 25.0) * 0.15);
+        warpSingularityMesh.scale.set(sScale, sScale, sScale);
+        warpSingularityMesh.rotation.z += 0.18; // Continuously spinning!
+      } else {
+        warpSingularityMesh.visible = false;
+      }
+    }
+
+    // 4.2 Update Starfield Hyperdrive Streaks & Deceleration
     if (hyperjumpGroup && hyperjumpMat && hyperjumpPos && hyperjumpData) {
       var showHyper = (currentWarp > 0.001 || isHyperjumpAnimating);
       hyperjumpGroup.visible = showHyper;
@@ -1750,10 +1813,10 @@ function animate() {
 
         // Move stars forward along +Z past the viewer's eyes
         // When warp reaches 0, stars COMPLETELY STOP and FREEZE in 3D space!
-        if (currentWarp > 0.001) {
+        if (currentWarp > 0.0001) {
           hd.z += hd.speed * warpSpeedMult * dtWarp;
-          if (hd.z > 25.0) {
-            hd.z = -55.0 - Math.random() * 20.0;
+          if (hd.z > (camera.position.z + 10.0)) {
+            hd.z = camera.position.z - 75.0 - Math.random() * 25.0;
           }
         }
 
@@ -1771,7 +1834,7 @@ function animate() {
       }
     }
 
-    // 4.2 Long-Exposure Tail Light Streaks from F40's 4 Circular Lamps
+    // 4.3 Long-Exposure Tail Light Streaks from F40's 4 Circular Lamps
     // Aligned directly to the 4 circular rear lenses on the rear grille
     if (lightTrailsMesh && lightTrailsMat && lightTrailsPos && lightTrailsGeo) {
       var isTrailActive = (currentWarp > 0.005);
@@ -1787,20 +1850,16 @@ function animate() {
         ];
 
         var trailSegCount = 36;
-        var maxTrailDist = Math.max(currentWarp * 35.0, (carSurgeZ - camChaseZ) * 1.15); // Trails stretch backwards across the entire gap!
-        var trailWidth = 0.12; // 12cm wide intense luminous laser ribbon
+        var maxTrailDist = Math.max(currentWarp * 35.0, (carSurgeZ - camChaseZ) * 1.15);
+        var trailWidth = 0.12;
 
         var trVIdx = 0;
         for (var tIdx = 0; tIdx < 4; tIdx++) {
           var lamp = lampOrigins[tIdx];
           for (var seg = 0; seg < trailSegCount; seg++) {
             var sFrac = seg / (trailSegCount - 1);
-            // Trail extends backwards from the lamp (-Z in local is +Z trailing behind the rear)
-            // Notice: local -Z is the rear bumper of F40! So trailing backwards means z < -1.58 (-Z direction in local)
             var tz = lamp.z - sFrac * maxTrailDist;
             var falloff = Math.pow(1.0 - sFrac, 1.8);
-
-            // Subtle warp pulsation along the trail
             var pulse = Math.sin(seg * 0.8 - elapsedTime * 12.0) * 0.008 * (1.0 - sFrac);
 
             // Vertex 0 (left edge of ribbon)
@@ -1822,6 +1881,18 @@ function animate() {
             trVIdx++;
           }
         }
+
+        if (lightTrailsGeo.attributes.position) lightTrailsGeo.attributes.position.needsUpdate = true;
+        if (lightTrailsGeo.attributes.color) lightTrailsGeo.attributes.color.needsUpdate = true;
+      }
+    }
+  } else {
+    // STEPS 0, 1, 2, 3: Pure, unmolested animations! Zero camera or car override!
+    if (carGroup) carGroup.scale.set(1, 1, 1);
+    if (warpSingularityMesh) warpSingularityMesh.visible = false;
+    if (lightTrailsMesh) lightTrailsMesh.visible = false;
+    if (hyperjumpGroup) hyperjumpGroup.visible = false;
+  }
 
         if (lightTrailsGeo.attributes.position) lightTrailsGeo.attributes.position.needsUpdate = true;
         if (lightTrailsGeo.attributes.color) lightTrailsGeo.attributes.color.needsUpdate = true;
