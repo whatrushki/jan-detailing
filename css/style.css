@@ -46,6 +46,38 @@ html, body {
   pointer-events: auto;
 }
 
+/* 3D Photo Studio Quick Link */
+.studio-link-pill {
+  position: fixed;
+  bottom: 24px;
+  left: 24px;
+  z-index: 60;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 1.5px;
+  color: rgba(255, 255, 255, 0.7);
+  background: rgba(10, 10, 14, 0.7);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  padding: 8px 14px;
+  border-radius: 3px;
+  text-decoration: none;
+  transition: all 0.25s ease;
+  pointer-events: auto;
+}
+.studio-link-pill:hover {
+  color: #fff;
+  border-color: #e50914;
+  background: rgba(229, 9, 20, 0.18);
+  box-shadow: 0 0 16px rgba(229, 9, 20, 0.4);
+  transform: translateY(-1px);
+}
+
 .hud-step {
   display: flex;
   align-items: center;

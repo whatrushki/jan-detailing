@@ -1,0 +1,423 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>JAN DETAILING - 3D Photo & Export Studio</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Montserrat:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="preload" href="assets/models/ferrari_f40.glb" as="fetch" crossorigin>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+    html, body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: #030304;
+      font-family: 'JetBrains Mono', monospace;
+      color: #fff;
+    }
+    #webgl {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      display: block;
+      z-index: 1;
+      cursor: grab;
+    }
+    #webgl:active {
+      cursor: grabbing;
+    }
+
+    /* Top Navigation Bar */
+    .studio-header {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 60px;
+      padding: 0 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      z-index: 100;
+      background: linear-gradient(180deg, rgba(3,3,4,0.85) 0%, rgba(3,3,4,0) 100%);
+      pointer-events: none;
+    }
+    .studio-brand {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      pointer-events: auto;
+    }
+    .brand-logo-img {
+      height: 22px;
+      filter: drop-shadow(0 0 10px rgba(255,255,255,0.4));
+    }
+    .studio-tag {
+      font-size: 11px;
+      letter-spacing: 3px;
+      color: #e50914;
+      font-weight: 700;
+      background: rgba(229, 9, 20, 0.12);
+      border: 1px solid rgba(229, 9, 20, 0.35);
+      padding: 3px 8px;
+      border-radius: 2px;
+    }
+    .back-link {
+      pointer-events: auto;
+      font-size: 11px;
+      letter-spacing: 1.5px;
+      color: rgba(255,255,255,0.7);
+      text-decoration: none;
+      padding: 8px 14px;
+      border: 1px solid rgba(255,255,255,0.18);
+      background: rgba(10,10,14,0.6);
+      backdrop-filter: blur(10px);
+      border-radius: 2px;
+      transition: all 0.2s ease;
+    }
+    .back-link:hover {
+      color: #fff;
+      border-color: rgba(255,255,255,0.5);
+      background: rgba(255,255,255,0.1);
+    }
+
+    /* Floating Studio Control Panel */
+    .control-panel {
+      position: fixed;
+      top: 76px;
+      right: 20px;
+      width: 320px;
+      max-height: calc(100vh - 96px);
+      overflow-y: auto;
+      z-index: 100;
+      background: rgba(8, 8, 12, 0.88);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 4px;
+      padding: 18px;
+      box-shadow: 0 16px 40px rgba(0, 0, 0, 0.85);
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.3s ease;
+    }
+    .control-panel.hidden {
+      transform: translateX(340px);
+      opacity: 0;
+      pointer-events: none;
+    }
+    .panel-section {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .section-title {
+      font-size: 10px;
+      letter-spacing: 2px;
+      color: rgba(255, 255, 255, 0.45);
+      text-transform: uppercase;
+      font-weight: 600;
+    }
+
+    /* Grid of Quick Buttons */
+    .btn-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 6px;
+    }
+    .btn-grid.cols-3 {
+      grid-template-columns: repeat(3, 1fr);
+    }
+    .tool-btn {
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      color: rgba(255, 255, 255, 0.85);
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 10px;
+      letter-spacing: 1px;
+      padding: 8px 6px;
+      cursor: pointer;
+      border-radius: 2px;
+      text-align: center;
+      transition: all 0.2s ease;
+    }
+    .tool-btn:hover {
+      background: rgba(255, 255, 255, 0.12);
+      border-color: rgba(255, 255, 255, 0.4);
+      color: #fff;
+    }
+    .tool-btn.active {
+      background: #e50914;
+      border-color: #e50914;
+      color: #fff;
+      font-weight: 600;
+      box-shadow: 0 0 14px rgba(229, 9, 20, 0.5);
+    }
+
+    /* Sliders */
+    .slider-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+    .slider-row label {
+      font-size: 10px;
+      color: rgba(255, 255, 255, 0.6);
+      min-width: 80px;
+    }
+    .slider-row input[type="range"] {
+      flex: 1;
+      accent-color: #e50914;
+      cursor: pointer;
+    }
+
+    /* Primary Export Action */
+    .export-box {
+      margin-top: 6px;
+      padding-top: 14px;
+      border-top: 1px solid rgba(255, 255, 255, 0.12);
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .export-btn {
+      background: #e50914;
+      border: 1px solid #ff3344;
+      color: #ffffff;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 2px;
+      padding: 14px 16px;
+      cursor: pointer;
+      border-radius: 3px;
+      text-transform: uppercase;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      box-shadow: 0 0 20px rgba(229, 9, 20, 0.5);
+      transition: all 0.25s ease;
+    }
+    .export-btn:hover {
+      background: #ff1f2d;
+      box-shadow: 0 0 30px rgba(229, 9, 20, 0.8);
+      transform: translateY(-1px);
+    }
+    .export-btn:active {
+      transform: translateY(1px);
+    }
+
+    /* Bottom Info & Hotkey Pill */
+    .studio-footer {
+      position: fixed;
+      bottom: 16px;
+      left: 20px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      z-index: 100;
+      pointer-events: none;
+    }
+    .pill {
+      font-size: 10px;
+      letter-spacing: 1px;
+      color: rgba(255, 255, 255, 0.5);
+      background: rgba(10, 10, 14, 0.65);
+      backdrop-filter: blur(10px);
+      padding: 6px 12px;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 20px;
+    }
+    .pill kbd {
+      background: rgba(255, 255, 255, 0.15);
+      padding: 2px 5px;
+      border-radius: 3px;
+      color: #fff;
+    }
+
+    /* Toggle UI Floating Button */
+    .ui-toggle-btn {
+      position: fixed;
+      top: 76px;
+      right: 20px;
+      z-index: 99;
+      background: rgba(8, 8, 12, 0.8);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      color: #fff;
+      font-size: 14px;
+      padding: 8px 12px;
+      border-radius: 4px;
+      cursor: pointer;
+      display: none;
+    }
+    .control-panel.hidden + .ui-toggle-btn {
+      display: block;
+    }
+
+    /* Toast Notification */
+    .toast {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      z-index: 200;
+      background: rgba(15, 25, 20, 0.95);
+      border: 1px solid #00ff88;
+      color: #00ff88;
+      font-size: 11px;
+      letter-spacing: 1px;
+      padding: 12px 20px;
+      border-radius: 4px;
+      box-shadow: 0 0 25px rgba(0, 255, 136, 0.4);
+      backdrop-filter: blur(12px);
+      transform: translateY(80px);
+      opacity: 0;
+      transition: all 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    .toast.show {
+      transform: translateY(0);
+      opacity: 1;
+    }
+
+    /* Loading Screen */
+    .loader-overlay {
+      position: fixed;
+      inset: 0;
+      background: #040406;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 16px;
+      z-index: 1000;
+      transition: opacity 0.6s ease;
+    }
+    .loader-overlay.hidden {
+      opacity: 0;
+      pointer-events: none;
+    }
+    .loader-spinner {
+      width: 44px;
+      height: 44px;
+      border: 2px solid rgba(255, 255, 255, 0.1);
+      border-top-color: #e50914;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+    .loader-text {
+      font-size: 11px;
+      letter-spacing: 3px;
+      color: rgba(255, 255, 255, 0.7);
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Loading State -->
+  <div class="loader-overlay" id="loaderOverlay">
+    <div class="loader-spinner"></div>
+    <div class="loader-text">ЗАГРУЗКА 3D ФОТОСТУДИИ FERRARI F40...</div>
+  </div>
+
+  <!-- Header -->
+  <header class="studio-header">
+    <div class="studio-brand">
+      <img src="assets/Vector.svg" alt="JAN DETAILING" class="brand-logo-img">
+      <span class="studio-tag">PHOTO STUDIO 3D</span>
+    </div>
+    <a href="index.html" class="back-link">&larr; ВЕРНУТЬСЯ НА САЙТ</a>
+  </header>
+
+  <!-- WebGL Canvas -->
+  <canvas id="webgl"></canvas>
+
+  <!-- Floating Controls -->
+  <aside class="control-panel" id="controlPanel">
+    
+    <!-- 1. Camera Angles -->
+    <div class="panel-section">
+      <div class="section-title">Ракурс камеры</div>
+      <div class="btn-grid">
+        <button class="tool-btn active" data-pose="front34">3/4 СПЕРЕДИ</button>
+        <button class="tool-btn" data-pose="rear34">3/4 СЗАДИ</button>
+        <button class="tool-btn" data-pose="side">ПРОФИЛЬ</button>
+        <button class="tool-btn" data-pose="front">ФАС (ЛОБ)</button>
+        <button class="tool-btn" data-pose="rear">КОРМА</button>
+        <button class="tool-btn" data-pose="top">СВЕРХУ</button>
+      </div>
+    </div>
+
+    <!-- 2. Studio Environment & Background -->
+    <div class="panel-section">
+      <div class="section-title">Окружение и фон</div>
+      <div class="btn-grid">
+        <button class="tool-btn active" data-bg="studio">ТЕМНАЯ СТУДИЯ</button>
+        <button class="tool-btn" data-bg="transparent">ПРОЗРАЧНЫЙ (PNG)</button>
+        <button class="tool-btn" data-bg="black">ЧИСТЫЙ ЧЕРНЫЙ</button>
+        <button class="tool-btn" data-bg="cosmos">ГЛУБОКИЙ КОСМОС</button>
+      </div>
+    </div>
+
+    <!-- 3. Lighting & Effects -->
+    <div class="panel-section">
+      <div class="section-title">Свет и оптика</div>
+      <div class="btn-grid">
+        <button class="tool-btn" id="btnHeadlights">ФАРЫ: ВКЛ</button>
+        <button class="tool-btn" id="btnRearLights">СТОП-СИГНАЛЫ</button>
+        <button class="tool-btn" id="btnTurntable">АВТОВРАЩЕНИЕ</button>
+        <button class="tool-btn active" id="btnFloor">ПОЛ И ТЕНЬ</button>
+      </div>
+      <div class="slider-row" style="margin-top: 4px;">
+        <label>Яркость:</label>
+        <input type="range" id="lightIntensity" min="0.5" max="3.5" step="0.1" value="1.5">
+      </div>
+    </div>
+
+    <!-- 4. Export PNG Options -->
+    <div class="export-box">
+      <div class="section-title">Экспорт в PNG</div>
+      
+      <div class="btn-grid cols-3">
+        <button class="tool-btn active" data-res="1080">1080p</button>
+        <button class="tool-btn" data-res="4k">4K ULTRA</button>
+        <button class="tool-btn" data-res="8k">8K MAX</button>
+      </div>
+
+      <button class="export-btn" id="btnExport">
+        <span>📸</span> СКАЧАТЬ В PNG
+      </button>
+    </div>
+
+  </aside>
+
+  <button class="ui-toggle-btn" id="btnShowUI" title="Показать панель (H)">⚙ МЕНЮ</button>
+
+  <!-- Footer Help -->
+  <footer class="studio-footer">
+    <div class="pill">🖱 ЛКМ: вращение | ПКМ: панорама | Колесо: зум</div>
+    <div class="pill"><kbd>H</kbd> скрыть меню | <kbd>Пробел</kbd> вращение</div>
+  </footer>
+
+  <!-- Toast -->
+  <div class="toast" id="toast">✓ PNG УСПЕШНО ЭКСПОРТИРОВАН</div>
+
+  <!-- Studio Script -->
+  <script type="module" src="js/studio.js"></script>
+</body>
+</html>
