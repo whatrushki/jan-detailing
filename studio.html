@@ -38,6 +38,46 @@
       cursor: grabbing;
     }
 
+    /* Aspect Ratio Framing Guide Overlay */
+    .frame-overlay {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: 10;
+      display: none;
+    }
+    .frame-overlay.active {
+      display: block;
+    }
+    .frame-matte {
+      position: absolute;
+      background: rgba(0, 0, 0, 0.72);
+      backdrop-filter: blur(2px);
+    }
+    .frame-box {
+      position: absolute;
+      border: 1px solid rgba(255, 255, 255, 0.35);
+      box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.8), 0 0 30px rgba(0, 0, 0, 0.6);
+      pointer-events: none;
+    }
+    .frame-grid-line-h1, .frame-grid-line-h2,
+    .frame-grid-line-v1, .frame-grid-line-v2 {
+      position: absolute;
+      background: rgba(255, 255, 255, 0.12);
+      pointer-events: none;
+      display: none;
+    }
+    .show-grid .frame-grid-line-h1,
+    .show-grid .frame-grid-line-h2,
+    .show-grid .frame-grid-line-v1,
+    .show-grid .frame-grid-line-v2 {
+      display: block;
+    }
+    .frame-grid-line-h1 { top: 33.333%; left: 0; right: 0; height: 1px; }
+    .frame-grid-line-h2 { top: 66.666%; left: 0; right: 0; height: 1px; }
+    .frame-grid-line-v1 { left: 33.333%; top: 0; bottom: 0; width: 1px; }
+    .frame-grid-line-v2 { left: 66.666%; top: 0; bottom: 0; width: 1px; }
+
     /* Top Navigation Bar */
     .studio-header {
       position: fixed;
@@ -95,50 +135,86 @@
     /* Floating Studio Control Panel */
     .control-panel {
       position: fixed;
-      top: 76px;
+      top: 70px;
       right: 20px;
-      width: 320px;
-      max-height: calc(100vh - 96px);
+      width: 335px;
+      max-height: calc(100vh - 86px);
       overflow-y: auto;
+      overflow-x: hidden;
       z-index: 100;
-      background: rgba(8, 8, 12, 0.88);
-      backdrop-filter: blur(20px);
-      -webkit-backdrop-filter: blur(20px);
+      background: rgba(8, 8, 12, 0.90);
+      backdrop-filter: blur(24px);
+      -webkit-backdrop-filter: blur(24px);
       border: 1px solid rgba(255, 255, 255, 0.12);
       border-radius: 4px;
-      padding: 18px;
-      box-shadow: 0 16px 40px rgba(0, 0, 0, 0.85);
+      padding: 16px;
+      box-shadow: 0 16px 45px rgba(0, 0, 0, 0.9);
       display: flex;
       flex-direction: column;
-      gap: 16px;
+      gap: 14px;
       transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.3s ease;
     }
+    .control-panel::-webkit-scrollbar {
+      width: 4px;
+    }
+    .control-panel::-webkit-scrollbar-track {
+      background: rgba(255, 255, 255, 0.03);
+    }
+    .control-panel::-webkit-scrollbar-thumb {
+      background: rgba(255, 255, 255, 0.22);
+      border-radius: 2px;
+    }
+    .control-panel::-webkit-scrollbar-thumb:hover {
+      background: #e50914;
+    }
+
     .control-panel.hidden {
-      transform: translateX(340px);
+      transform: translateX(360px);
       opacity: 0;
       pointer-events: none;
     }
     .panel-section {
       display: flex;
       flex-direction: column;
-      gap: 8px;
+      gap: 7px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+      padding-bottom: 12px;
+    }
+    .panel-section:last-of-type {
+      border-bottom: none;
+      padding-bottom: 0;
     }
     .section-title {
       font-size: 10px;
       letter-spacing: 2px;
-      color: rgba(255, 255, 255, 0.45);
+      color: rgba(255, 255, 255, 0.5);
       text-transform: uppercase;
       font-weight: 600;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .section-title span.val-badge {
+      font-size: 9px;
+      color: #e50914;
+      font-weight: 700;
+      letter-spacing: 1px;
+      background: rgba(229, 9, 20, 0.1);
+      padding: 1px 6px;
+      border-radius: 2px;
     }
 
     /* Grid of Quick Buttons */
     .btn-grid {
       display: grid;
       grid-template-columns: repeat(2, 1fr);
-      gap: 6px;
+      gap: 5px;
     }
     .btn-grid.cols-3 {
       grid-template-columns: repeat(3, 1fr);
+    }
+    .btn-grid.cols-5 {
+      grid-template-columns: repeat(5, 1fr);
     }
     .tool-btn {
       background: rgba(255, 255, 255, 0.04);
@@ -146,12 +222,15 @@
       color: rgba(255, 255, 255, 0.85);
       font-family: 'JetBrains Mono', monospace;
       font-size: 10px;
-      letter-spacing: 1px;
-      padding: 8px 6px;
+      letter-spacing: 0.5px;
+      padding: 7px 4px;
       cursor: pointer;
       border-radius: 2px;
       text-align: center;
       transition: all 0.2s ease;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
     .tool-btn:hover {
       background: rgba(255, 255, 255, 0.12);
@@ -163,35 +242,45 @@
       border-color: #e50914;
       color: #fff;
       font-weight: 600;
-      box-shadow: 0 0 14px rgba(229, 9, 20, 0.5);
+      box-shadow: 0 0 12px rgba(229, 9, 20, 0.45);
     }
 
     /* Sliders */
     .slider-row {
       display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 12px;
+      flex-direction: column;
+      gap: 3px;
+      margin-top: 2px;
     }
-    .slider-row label {
-      font-size: 10px;
+    .slider-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 9px;
       color: rgba(255, 255, 255, 0.6);
-      min-width: 80px;
+      letter-spacing: 1px;
+    }
+    .slider-header span.slider-val {
+      color: #00ff88;
+      font-weight: 600;
     }
     .slider-row input[type="range"] {
-      flex: 1;
+      width: 100%;
       accent-color: #e50914;
       cursor: pointer;
+      height: 4px;
+      background: rgba(255, 255, 255, 0.12);
+      border-radius: 2px;
     }
 
     /* Primary Export Action */
     .export-box {
-      margin-top: 6px;
-      padding-top: 14px;
-      border-top: 1px solid rgba(255, 255, 255, 0.12);
+      margin-top: 4px;
+      padding-top: 10px;
+      border-top: 1px solid rgba(255, 255, 255, 0.15);
       display: flex;
       flex-direction: column;
-      gap: 10px;
+      gap: 8px;
     }
     .export-btn {
       background: #e50914;
@@ -201,7 +290,7 @@
       font-size: 11px;
       font-weight: 700;
       letter-spacing: 2px;
-      padding: 14px 16px;
+      padding: 13px 14px;
       cursor: pointer;
       border-radius: 3px;
       text-transform: uppercase;
@@ -214,7 +303,7 @@
     }
     .export-btn:hover {
       background: #ff1f2d;
-      box-shadow: 0 0 30px rgba(229, 9, 20, 0.8);
+      box-shadow: 0 0 28px rgba(229, 9, 20, 0.8);
       transform: translateY(-1px);
     }
     .export-btn:active {
@@ -252,14 +341,14 @@
     /* Toggle UI Floating Button */
     .ui-toggle-btn {
       position: fixed;
-      top: 76px;
+      top: 70px;
       right: 20px;
       z-index: 99;
       background: rgba(8, 8, 12, 0.8);
       border: 1px solid rgba(255, 255, 255, 0.2);
       color: #fff;
-      font-size: 14px;
-      padding: 8px 12px;
+      font-size: 13px;
+      padding: 8px 14px;
       border-radius: 4px;
       cursor: pointer;
       display: none;
@@ -344,26 +433,139 @@
     <a href="index.html" class="back-link">&larr; ВЕРНУТЬСЯ НА САЙТ</a>
   </header>
 
+  <!-- Aspect Ratio Guide Overlay -->
+  <div class="frame-overlay" id="frameOverlay">
+    <div class="frame-matte" id="matteTop"></div>
+    <div class="frame-matte" id="matteBottom"></div>
+    <div class="frame-matte" id="matteLeft"></div>
+    <div class="frame-matte" id="matteRight"></div>
+    <div class="frame-box" id="frameBox">
+      <div class="frame-grid-line-h1"></div>
+      <div class="frame-grid-line-h2"></div>
+      <div class="frame-grid-line-v1"></div>
+      <div class="frame-grid-line-v2"></div>
+    </div>
+  </div>
+
   <!-- WebGL Canvas -->
   <canvas id="webgl"></canvas>
 
   <!-- Floating Controls -->
   <aside class="control-panel" id="controlPanel">
     
-    <!-- 1. Camera Angles -->
+    <!-- 1. Focal Length & Lens -->
     <div class="panel-section">
-      <div class="section-title">Ракурс камеры</div>
-      <div class="btn-grid">
-        <button class="tool-btn active" data-pose="front34">3/4 СПЕРЕДИ</button>
-        <button class="tool-btn" data-pose="rear34">3/4 СЗАДИ</button>
-        <button class="tool-btn" data-pose="side">ПРОФИЛЬ</button>
-        <button class="tool-btn" data-pose="front">ФАС (ЛОБ)</button>
-        <button class="tool-btn" data-pose="rear">КОРМА</button>
-        <button class="tool-btn" data-pose="top">СВЕРХУ</button>
+      <div class="section-title">
+        <span>Объектив / Фокус</span>
+        <span class="val-badge" id="lensBadge">35mm (38°)</span>
+      </div>
+      <div class="btn-grid cols-5">
+        <button class="tool-btn" data-lens="24">24mm</button>
+        <button class="tool-btn active" data-lens="35">35mm</button>
+        <button class="tool-btn" data-lens="50">50mm</button>
+        <button class="tool-btn" data-lens="85">85mm</button>
+        <button class="tool-btn" data-lens="135">135mm</button>
+      </div>
+      <div class="slider-row">
+        <div class="slider-header">
+          <span>Угол обзора (FOV):</span>
+          <span class="slider-val" id="fovVal">38°</span>
+        </div>
+        <input type="range" id="fovSlider" min="12" max="75" step="1" value="38">
       </div>
     </div>
 
-    <!-- 2. Studio Environment & Background -->
+    <!-- 2. Precise Camera Angles & Position -->
+    <div class="panel-section">
+      <div class="section-title">
+        <span>Угол и положение камеры</span>
+        <span class="val-badge" id="orbitBadge">3/4</span>
+      </div>
+
+      <!-- Quick Angle Presets -->
+      <div class="btn-grid cols-3">
+        <button class="tool-btn active" data-pose="front34">3/4 СПЕРЕДИ</button>
+        <button class="tool-btn" data-pose="rear34">3/4 СЗАДИ</button>
+        <button class="tool-btn" data-pose="side">ПРОФИЛЬ</button>
+        <button class="tool-btn" data-pose="front">ФАС</button>
+        <button class="tool-btn" data-pose="rear">КОРМА</button>
+        <button class="tool-btn" data-pose="top">СВЕРХУ</button>
+      </div>
+
+      <!-- Precise Sliders -->
+      <div class="slider-row">
+        <div class="slider-header">
+          <span>Азимут (горизонталь):</span>
+          <span class="slider-val" id="azimuthVal">43°</span>
+        </div>
+        <input type="range" id="azimuthSlider" min="0" max="360" step="1" value="43">
+      </div>
+
+      <div class="slider-row">
+        <div class="slider-header">
+          <span>Высота (угол наклона):</span>
+          <span class="slider-val" id="elevationVal">18°</span>
+        </div>
+        <input type="range" id="elevationSlider" min="-10" max="85" step="1" value="18">
+      </div>
+
+      <div class="slider-row">
+        <div class="slider-header">
+          <span>Дистанция (зум):</span>
+          <span class="slider-val" id="distanceVal">6.2m</span>
+        </div>
+        <input type="range" id="distanceSlider" min="1.8" max="16.0" step="0.1" value="6.2">
+      </div>
+
+      <div class="slider-row">
+        <div class="slider-header">
+          <span>Крен (Dutch Angle):</span>
+          <span class="slider-val" id="rollVal">0°</span>
+        </div>
+        <input type="range" id="rollSlider" min="-45" max="45" step="1" value="0">
+      </div>
+
+      <!-- Quick Camera Heights -->
+      <div class="btn-grid cols-3" style="margin-top: 3px;">
+        <button class="tool-btn" data-height="ground">ЗЕМЛЯ 0.2m</button>
+        <button class="tool-btn" data-height="lights">ФАРЫ 0.6m</button>
+        <button class="tool-btn" data-height="drone">ДРОН 3.5m</button>
+      </div>
+    </div>
+
+    <!-- 3. Target Focus / Pan Point -->
+    <div class="panel-section">
+      <div class="section-title">
+        <span>Точка фокуса (Панорама)</span>
+        <button class="tool-btn" id="btnResetTarget" style="padding: 2px 8px; font-size: 8px;">ЦЕНТР</button>
+      </div>
+      <div class="btn-grid cols-3">
+        <button class="tool-btn active" data-target="center">ВЕСЬ АВТО</button>
+        <button class="tool-btn" data-target="wheel">ДИСК / ШИНА</button>
+        <button class="tool-btn" data-target="badge">КАПОТ / ЛОГО</button>
+        <button class="tool-btn" data-target="wing">КРЫЛО F40</button>
+        <button class="tool-btn" data-target="cockpit">САЛОН</button>
+        <button class="tool-btn" data-target="exhaust">ВЫХЛОП</button>
+      </div>
+    </div>
+
+    <!-- 4. Aspect Ratio & Composition Grid -->
+    <div class="panel-section">
+      <div class="section-title">Формат кадра и сетка</div>
+      <div class="btn-grid cols-5">
+        <button class="tool-btn" data-ratio="16-9">16:9</button>
+        <button class="tool-btn" data-ratio="1-1">1:1</button>
+        <button class="tool-btn" data-ratio="9-16">9:16</button>
+        <button class="tool-btn" data-ratio="21-9">21:9</button>
+        <button class="tool-btn active" data-ratio="full">FULL</button>
+      </div>
+      <div class="btn-grid" style="margin-top: 2px;">
+        <button class="tool-btn" id="btnToggleGrid">СЕТКА 3×3: ВЫКЛ</button>
+        <button class="tool-btn" id="btnResetAll">СБРОСИТЬ ВСЁ</button>
+      </div>
+    </div>
+
+    <!-- 5. Studio Environment & Background -->
     <div class="panel-section">
       <div class="section-title">Окружение и фон</div>
       <div class="btn-grid">
@@ -374,7 +576,7 @@
       </div>
     </div>
 
-    <!-- 3. Lighting & Effects -->
+    <!-- 6. Lighting & Optics -->
     <div class="panel-section">
       <div class="section-title">Свет и оптика</div>
       <div class="btn-grid">
@@ -384,14 +586,17 @@
         <button class="tool-btn active" id="btnFloor">ПОЛ И ТЕНЬ</button>
       </div>
       <div class="slider-row" style="margin-top: 4px;">
-        <label>Яркость:</label>
+        <div class="slider-header">
+          <span>Яркость освещения:</span>
+          <span class="slider-val" id="lightVal">1.5×</span>
+        </div>
         <input type="range" id="lightIntensity" min="0.5" max="3.5" step="0.1" value="1.5">
       </div>
     </div>
 
-    <!-- 4. Export PNG Options -->
+    <!-- 7. Export PNG Options -->
     <div class="export-box">
-      <div class="section-title">Экспорт в PNG</div>
+      <div class="section-title">Разрешение экспорта</div>
       
       <div class="btn-grid cols-3">
         <button class="tool-btn active" data-res="1080">1080p</button>
@@ -406,7 +611,7 @@
 
   </aside>
 
-  <button class="ui-toggle-btn" id="btnShowUI" title="Показать панель (H)">⚙ МЕНЮ</button>
+  <button class="ui-toggle-btn" id="btnShowUI" title="Показать панель (H)">⚙ КАМЕРА И МЕНЮ</button>
 
   <!-- Footer Help -->
   <footer class="studio-footer">

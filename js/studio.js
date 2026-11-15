@@ -3,7 +3,8 @@ import { GLTFLoader } from './libs/GLTFLoader.js';
 
 /* ============================================================
    JAN DETAILING - 3D PHOTO & EXPORT STUDIO (FERRARI F40)
-   High-Resolution Viewport, Full Orbit, Lighting & PNG Exporter
+   Full Pro Camera Control, Flexible Angles, Lenses, FOV,
+   Pan Targets, Aspect Ratio Guides & Ultra-Res PNG Exporter
    ============================================================ */
 
 var scene, camera, renderer, carGroup, carModel;
@@ -12,16 +13,26 @@ var studioFloor, contactShadowMesh, studioLightGroup;
 var starsGroup;
 var currentBgMode = 'studio'; // 'studio', 'transparent', 'black', 'cosmos'
 var exportRes = '1080'; // '1080', '4k', '8k'
+var currentRatio = 'full'; // '16-9', '1-1', '9-16', '21-9', 'full'
 var isTurntableActive = false;
 var lightsOn = false;
 var rearLightsOn = false;
 var floorVisible = true;
+var showGrid = false;
+
+// Camera Lens & FOV State
+var currentFov = 38;
+var targetFov = 38;
+
+// Camera Roll (Dutch Angle) in radians
+var currentRoll = 0.0;
+var targetRoll = 0.0;
 
 // Orbit Controls State (Spherical Coordinates)
 var spherical = {
   radius: 6.2,
   theta: 0.75, // azimuth angle around Y
-  phi: 1.25    // polar angle from top (0 to PI)
+  phi: 1.25    // polar angle from top (0 = top, PI/2 = horizon)
 };
 var targetSpherical = {
   radius: 6.2,
@@ -33,10 +44,33 @@ var currentCenter = new THREE.Vector3(0, 0.25, 0);
 
 var isDragging = false;
 var isPanning = false;
+var isUserInteracting = false;
 var previousMousePosition = { x: 0, y: 0 };
 var canvas = document.getElementById('webgl');
 var loaderOverlay = document.getElementById('loaderOverlay');
 var toast = document.getElementById('toast');
+
+// UI Elements for live readouts
+var elAzimuthSlider = document.getElementById('azimuthSlider');
+var elAzimuthVal = document.getElementById('azimuthVal');
+var elElevationSlider = document.getElementById('elevationSlider');
+var elElevationVal = document.getElementById('elevationVal');
+var elDistanceSlider = document.getElementById('distanceSlider');
+var elDistanceVal = document.getElementById('distanceVal');
+var elRollSlider = document.getElementById('rollSlider');
+var elRollVal = document.getElementById('rollVal');
+var elFovSlider = document.getElementById('fovSlider');
+var elFovVal = document.getElementById('fovVal');
+var elLensBadge = document.getElementById('lensBadge');
+var elOrbitBadge = document.getElementById('orbitBadge');
+
+// Frame Overlay elements
+var frameOverlay = document.getElementById('frameOverlay');
+var frameBox = document.getElementById('frameBox');
+var matteTop = document.getElementById('matteTop');
+var matteBottom = document.getElementById('matteBottom');
+var matteLeft = document.getElementById('matteLeft');
+var matteRight = document.getElementById('matteRight');
 
 init();
 
@@ -45,8 +79,8 @@ function init() {
   scene = new THREE.Scene();
   scene.background = new THREE.Color(0x060608);
 
-  camera = new THREE.PerspectiveCamera(34, window.innerWidth / window.innerHeight, 0.1, 1000);
-  updateCameraFromSpherical();
+  camera = new THREE.PerspectiveCamera(currentFov, window.innerWidth / window.innerHeight, 0.1, 1000);
+  updateCameraOrientation();
 
   // 2. High-Precision Renderer with Alpha & Drawing Buffer Preservation
   renderer = new THREE.WebGLRenderer({
@@ -79,9 +113,10 @@ function init() {
 
   loadCarModel();
 
-  // 8. Event Listeners (Orbit, UI, Hotkeys)
+  // 8. Event Listeners & UI Controls
   setupOrbitInteractions();
   setupUIHandlers();
+  updateFrameOverlay();
 
   // 9. Render Loop
   requestAnimationFrame(animate);
@@ -91,10 +126,10 @@ function init() {
    STUDIO ENVIRONMENT & LIGHTING
    ============================================================ */
 function createStudioEnvMap() {
-  var canvas = document.createElement('canvas');
-  canvas.width = 1024;
-  canvas.height = 512;
-  var ctx = canvas.getContext('2d');
+  var c = document.createElement('canvas');
+  c.width = 1024;
+  c.height = 512;
+  var ctx = c.getContext('2d');
 
   var grad = ctx.createLinearGradient(0, 0, 0, 512);
   grad.addColorStop(0.0, '#040406');
@@ -114,7 +149,7 @@ function createStudioEnvMap() {
   ctx.fillStyle = softGrad;
   ctx.fillRect(0, 0, 1024, 280);
 
-  var tex = new THREE.CanvasTexture(canvas);
+  var tex = new THREE.CanvasTexture(c);
   tex.mapping = THREE.EquirectangularReflectionMapping;
   return tex;
 }
@@ -297,14 +332,38 @@ function loadCarModel() {
 }
 
 /* ============================================================
-   ORBIT CAMERA CONTROLLER (INTERACTION)
+   CAMERA POSITION & ORIENTATION (ROLL & DUTCH ANGLE SUPPORT)
+   ============================================================ */
+function updateCameraOrientation() {
+  var x = currentCenter.x + spherical.radius * Math.sin(spherical.phi) * Math.sin(spherical.theta);
+  var y = currentCenter.y + spherical.radius * Math.cos(spherical.phi);
+  var z = currentCenter.z + spherical.radius * Math.sin(spherical.phi) * Math.cos(spherical.theta);
+
+  camera.position.set(x, y, z);
+
+  // Compute robust up vector with roll support
+  var forward = new THREE.Vector3().subVectors(currentCenter, camera.position).normalize();
+  var worldUp = Math.abs(forward.y) > 0.99 ? new THREE.Vector3(0, 0, -1) : new THREE.Vector3(0, 1, 0);
+  var right = new THREE.Vector3().crossVectors(forward, worldUp).normalize();
+  var camUp = new THREE.Vector3().crossVectors(right, forward).normalize();
+
+  if (currentRoll !== 0) {
+    camUp.applyAxisAngle(forward, currentRoll);
+  }
+
+  camera.up.copy(camUp);
+  camera.lookAt(currentCenter);
+}
+
+/* ============================================================
+   ORBIT CAMERA CONTROLLER (MOUSE & TOUCH INTERACTION)
    ============================================================ */
 function setupOrbitInteractions() {
-  // Prevent context menu on right click for panning
   canvas.addEventListener('contextmenu', function(e) { e.preventDefault(); });
 
   canvas.addEventListener('mousedown', function(e) {
     isDragging = true;
+    isUserInteracting = true;
     isPanning = (e.button === 2); // Right click = pan
     previousMousePosition = { x: e.clientX, y: e.clientY };
   });
@@ -317,7 +376,7 @@ function setupOrbitInteractions() {
 
     if (isPanning) {
       // Pan camera target
-      var panSpeed = 0.004 * targetSpherical.radius;
+      var panSpeed = 0.0035 * targetSpherical.radius;
       var forward = new THREE.Vector3();
       camera.getWorldDirection(forward);
       var right = new THREE.Vector3().crossVectors(forward, camera.up).normalize();
@@ -327,12 +386,13 @@ function setupOrbitInteractions() {
       targetCenter.addScaledVector(up, deltaY * panSpeed);
     } else {
       // Rotate spherical coordinates
-      var rotateSpeed = 0.006;
+      var rotateSpeed = 0.0055;
       targetSpherical.theta -= deltaX * rotateSpeed;
       targetSpherical.phi -= deltaY * rotateSpeed;
 
       // Clamp polar angle (never flip upside down or clip into floor)
-      targetSpherical.phi = Math.max(0.08, Math.min(Math.PI * 0.52, targetSpherical.phi));
+      // phi: 0.08 (~85° elevation) to 1.75 (~-10° low angle)
+      targetSpherical.phi = Math.max(0.08, Math.min(Math.PI * 0.55, targetSpherical.phi));
     }
 
     previousMousePosition = { x: e.clientX, y: e.clientY };
@@ -341,20 +401,23 @@ function setupOrbitInteractions() {
   window.addEventListener('mouseup', function() {
     isDragging = false;
     isPanning = false;
+    setTimeout(function() { isUserInteracting = false; }, 200);
   });
 
   // Wheel Zoom
   canvas.addEventListener('wheel', function(e) {
     e.preventDefault();
-    var zoomSpeed = 0.0018 * targetSpherical.radius;
+    isUserInteracting = true;
+    var zoomSpeed = 0.0016 * targetSpherical.radius;
     targetSpherical.radius += e.deltaY * zoomSpeed;
-    // Clamp zoom distance
-    targetSpherical.radius = Math.max(1.8, Math.min(18.0, targetSpherical.radius));
+    targetSpherical.radius = Math.max(1.8, Math.min(16.0, targetSpherical.radius));
+    setTimeout(function() { isUserInteracting = false; }, 200);
   }, { passive: false });
 
   // Touch Support (Pinch zoom & 1-finger rotate)
   var initialTouchDist = 0;
   canvas.addEventListener('touchstart', function(e) {
+    isUserInteracting = true;
     if (e.touches.length === 1) {
       isDragging = true;
       isPanning = false;
@@ -373,9 +436,9 @@ function setupOrbitInteractions() {
       var deltaX = e.touches[0].clientX - previousMousePosition.x;
       var deltaY = e.touches[0].clientY - previousMousePosition.y;
 
-      targetSpherical.theta -= deltaX * 0.008;
-      targetSpherical.phi -= deltaY * 0.008;
-      targetSpherical.phi = Math.max(0.08, Math.min(Math.PI * 0.52, targetSpherical.phi));
+      targetSpherical.theta -= deltaX * 0.007;
+      targetSpherical.phi -= deltaY * 0.007;
+      targetSpherical.phi = Math.max(0.08, Math.min(Math.PI * 0.55, targetSpherical.phi));
 
       previousMousePosition = { x: e.touches[0].clientX, y: e.touches[0].clientY };
     } else if (e.touches.length === 2) {
@@ -385,16 +448,16 @@ function setupOrbitInteractions() {
       );
       var factor = (initialTouchDist - dist) * 0.015;
       targetSpherical.radius += factor;
-      targetSpherical.radius = Math.max(1.8, Math.min(18.0, targetSpherical.radius));
+      targetSpherical.radius = Math.max(1.8, Math.min(16.0, targetSpherical.radius));
       initialTouchDist = dist;
     }
   }, { passive: true });
 
   canvas.addEventListener('touchend', function() {
     isDragging = false;
+    setTimeout(function() { isUserInteracting = false; }, 200);
   }, { passive: true });
 
-  // Window Resize
   window.addEventListener('resize', onWindowResize);
 }
 
@@ -402,29 +465,131 @@ function onWindowResize() {
   camera.aspect = window.innerWidth / window.innerHeight;
   camera.updateProjectionMatrix();
   renderer.setSize(window.innerWidth, window.innerHeight);
-}
-
-function updateCameraFromSpherical() {
-  var x = targetCenter.x + spherical.radius * Math.sin(spherical.phi) * Math.sin(spherical.theta);
-  var y = targetCenter.y + spherical.radius * Math.cos(spherical.phi);
-  var z = targetCenter.z + spherical.radius * Math.sin(spherical.phi) * Math.cos(spherical.theta);
-
-  camera.position.set(x, y, z);
-  camera.lookAt(currentCenter);
+  updateFrameOverlay();
 }
 
 /* ============================================================
-   UI HANDLERS & PRESETS
+   ASPECT RATIO CROP GUIDE & OVERLAY
+   ============================================================ */
+function updateFrameOverlay() {
+  if (!frameOverlay || !frameBox) return;
+
+  if (currentRatio === 'full') {
+    frameOverlay.classList.remove('active');
+    return;
+  }
+
+  frameOverlay.classList.add('active');
+  if (showGrid) {
+    frameBox.classList.add('show-grid');
+  } else {
+    frameBox.classList.remove('show-grid');
+  }
+
+  var w = window.innerWidth;
+  var h = window.innerHeight;
+  var targetAspect = 16 / 9;
+
+  if (currentRatio === '16-9') targetAspect = 16 / 9;
+  else if (currentRatio === '1-1') targetAspect = 1.0;
+  else if (currentRatio === '9-16') targetAspect = 9 / 16;
+  else if (currentRatio === '21-9') targetAspect = 21 / 9;
+
+  var currentAspect = w / h;
+  var boxW, boxH, boxX, boxY;
+
+  if (currentAspect > targetAspect) {
+    // Screen is wider than target frame -> Pillarbox (bars on left & right)
+    boxH = h * 0.92;
+    boxW = boxH * targetAspect;
+    boxX = (w - boxW) / 2;
+    boxY = (h - boxH) / 2;
+  } else {
+    // Screen is taller than target frame -> Letterbox (bars on top & bottom)
+    boxW = w * 0.92;
+    boxH = boxW / targetAspect;
+    boxX = (w - boxW) / 2;
+    boxY = (h - boxH) / 2;
+  }
+
+  // Position frame box
+  frameBox.style.left = boxX + 'px';
+  frameBox.style.top = boxY + 'px';
+  frameBox.style.width = boxW + 'px';
+  frameBox.style.height = boxH + 'px';
+
+  // Position matte bars
+  matteTop.style.left = '0px';
+  matteTop.style.top = '0px';
+  matteTop.style.width = '100%';
+  matteTop.style.height = boxY + 'px';
+
+  matteBottom.style.left = '0px';
+  matteBottom.style.top = (boxY + boxH) + 'px';
+  matteBottom.style.width = '100%';
+  matteBottom.style.height = (h - (boxY + boxH)) + 'px';
+
+  matteLeft.style.left = '0px';
+  matteLeft.style.top = boxY + 'px';
+  matteLeft.style.width = boxX + 'px';
+  matteLeft.style.height = boxH + 'px';
+
+  matteRight.style.left = (boxX + boxW) + 'px';
+  matteRight.style.top = boxY + 'px';
+  matteRight.style.width = (w - (boxX + boxW)) + 'px';
+  matteRight.style.height = boxH + 'px';
+}
+
+/* ============================================================
+   UI HANDLERS & FULL BI-DIRECTIONAL CONTROLS
    ============================================================ */
 function setupUIHandlers() {
-  // 1. Camera Angle Presets
+  // --- 1. LENS PRESETS & FOV SLIDER ---
+  var lensFovMap = {
+    '24': 53,
+    '35': 38,
+    '50': 27,
+    '85': 16,
+    '135': 10
+  };
+
+  document.querySelectorAll('[data-lens]').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      document.querySelectorAll('[data-lens]').forEach(function(b) { b.classList.remove('active'); });
+      btn.classList.add('active');
+
+      var mm = btn.getAttribute('data-lens');
+      var fov = lensFovMap[mm] || 38;
+      targetFov = fov;
+      elFovSlider.value = fov;
+      elFovVal.textContent = fov + '°';
+      elLensBadge.textContent = mm + 'mm (' + fov + '°)';
+    });
+  });
+
+  elFovSlider.addEventListener('input', function() {
+    var val = parseFloat(elFovSlider.value);
+    targetFov = val;
+    elFovVal.textContent = val + '°';
+
+    // Calculate approximate 35mm equivalent focal length
+    var approxMm = Math.round(12 / Math.tan((val * Math.PI) / 360));
+    elLensBadge.textContent = '~' + approxMm + 'mm (' + val + '°)';
+
+    // Update active lens button if matches
+    document.querySelectorAll('[data-lens]').forEach(function(btn) {
+      btn.classList.toggle('active', parseInt(btn.getAttribute('data-lens')) === approxMm);
+    });
+  });
+
+  // --- 2. CAMERA ANGLE PRESETS ---
   var poses = {
-    front34: { theta: 0.72, phi: 1.28, radius: 6.2, center: { x: 0, y: 0.25, z: 0 } },
-    rear34:  { theta: 2.38, phi: 1.28, radius: 6.2, center: { x: 0, y: 0.25, z: 0 } },
-    side:    { theta: Math.PI * 0.5, phi: 1.35, radius: 5.8, center: { x: 0, y: 0.25, z: 0 } },
-    front:   { theta: 0.0, phi: 1.35, radius: 5.6, center: { x: 0, y: 0.25, z: 0 } },
-    rear:    { theta: Math.PI, phi: 1.35, radius: 5.6, center: { x: 0, y: 0.25, z: 0 } },
-    top:     { theta: 0.0, phi: 0.12, radius: 6.8, center: { x: 0, y: 0.0, z: 0 } }
+    front34: { theta: 0.72, phi: 1.28, radius: 6.2, center: { x: 0, y: 0.25, z: 0 }, label: '3/4 СПЕРЕДИ' },
+    rear34:  { theta: 2.38, phi: 1.28, radius: 6.2, center: { x: 0, y: 0.25, z: 0 }, label: '3/4 СЗАДИ' },
+    side:    { theta: Math.PI * 0.5, phi: 1.35, radius: 5.8, center: { x: 0, y: 0.25, z: 0 }, label: 'ПРОФИЛЬ' },
+    front:   { theta: 0.0, phi: 1.35, radius: 5.6, center: { x: 0, y: 0.25, z: 0 }, label: 'ФАС (ЛОБ)' },
+    rear:    { theta: Math.PI, phi: 1.35, radius: 5.6, center: { x: 0, y: 0.25, z: 0 }, label: 'КОРМА' },
+    top:     { theta: 0.0, phi: 0.12, radius: 6.8, center: { x: 0, y: 0.0, z: 0 }, label: 'СВЕРХУ' }
   };
 
   document.querySelectorAll('[data-pose]').forEach(function(btn) {
@@ -438,11 +603,159 @@ function setupUIHandlers() {
         targetSpherical.phi = pose.phi;
         targetSpherical.radius = pose.radius;
         targetCenter.set(pose.center.x, pose.center.y, pose.center.z);
+        targetRoll = 0.0;
+        elRollSlider.value = 0;
+        elRollVal.textContent = '0°';
+        elOrbitBadge.textContent = pose.label;
       }
     });
   });
 
-  // 2. Background Presets
+  // --- 3. PRECISE CAMERA SLIDERS ---
+  // Azimuth Slider (0° to 360°)
+  elAzimuthSlider.addEventListener('input', function() {
+    var deg = parseFloat(elAzimuthSlider.value);
+    targetSpherical.theta = (deg * Math.PI) / 180;
+    elAzimuthVal.textContent = Math.round(deg) + '°';
+    document.querySelectorAll('[data-pose]').forEach(function(b) { b.classList.remove('active'); });
+  });
+
+  // Elevation Slider (-10° to +85°)
+  elElevationSlider.addEventListener('input', function() {
+    var deg = parseFloat(elElevationSlider.value);
+    targetSpherical.phi = ((90 - deg) * Math.PI) / 180;
+    elElevationVal.textContent = Math.round(deg) + '°';
+    document.querySelectorAll('[data-pose]').forEach(function(b) { b.classList.remove('active'); });
+  });
+
+  // Distance Slider (1.8m to 16.0m)
+  elDistanceSlider.addEventListener('input', function() {
+    var dist = parseFloat(elDistanceSlider.value);
+    targetSpherical.radius = dist;
+    elDistanceVal.textContent = dist.toFixed(1) + 'm';
+  });
+
+  // Roll (Dutch Angle) Slider (-45° to +45°)
+  elRollSlider.addEventListener('input', function() {
+    var deg = parseFloat(elRollSlider.value);
+    targetRoll = (deg * Math.PI) / 180;
+    elRollVal.textContent = Math.round(deg) + '°';
+  });
+
+  // Camera Height Quick Buttons
+  document.querySelectorAll('[data-height]').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      var hMode = btn.getAttribute('data-height');
+      if (hMode === 'ground') {
+        targetSpherical.phi = ((90 - 2) * Math.PI) / 180;
+        targetSpherical.radius = 5.4;
+      } else if (hMode === 'lights') {
+        targetSpherical.phi = ((90 - 8) * Math.PI) / 180;
+        targetSpherical.radius = 5.8;
+      } else if (hMode === 'drone') {
+        targetSpherical.phi = ((90 - 45) * Math.PI) / 180;
+        targetSpherical.radius = 7.6;
+      }
+      syncSlidersFromSpherical();
+    });
+  });
+
+  // --- 4. PAN TARGETS & FOCUS POINTS ---
+  var targetPoints = {
+    center:  { x: 0.0, y: 0.25, z: 0.0 },
+    wheel:   { x: 1.15, y: -0.15, z: 1.35 },
+    badge:   { x: 0.0, y: 0.28, z: 1.62 },
+    wing:    { x: 0.0, y: 0.85, z: -1.72 },
+    cockpit: { x: 0.0, y: 0.45, z: 0.15 },
+    exhaust: { x: 0.0, y: -0.22, z: -1.90 }
+  };
+
+  document.querySelectorAll('[data-target]').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      document.querySelectorAll('[data-target]').forEach(function(b) { b.classList.remove('active'); });
+      btn.classList.add('active');
+
+      var pt = targetPoints[btn.getAttribute('data-target')];
+      if (pt) {
+        targetCenter.set(pt.x, pt.y, pt.z);
+      }
+    });
+  });
+
+  var btnResetTarget = document.getElementById('btnResetTarget');
+  if (btnResetTarget) {
+    btnResetTarget.addEventListener('click', function() {
+      targetCenter.set(0, 0.25, 0);
+      document.querySelectorAll('[data-target]').forEach(function(b) {
+        b.classList.toggle('active', b.getAttribute('data-target') === 'center');
+      });
+    });
+  }
+
+  // --- 5. ASPECT RATIO & COMPOSITION GRID ---
+  document.querySelectorAll('[data-ratio]').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      document.querySelectorAll('[data-ratio]').forEach(function(b) { b.classList.remove('active'); });
+      btn.classList.add('active');
+      currentRatio = btn.getAttribute('data-ratio');
+      updateFrameOverlay();
+    });
+  });
+
+  var btnToggleGrid = document.getElementById('btnToggleGrid');
+  if (btnToggleGrid) {
+    btnToggleGrid.addEventListener('click', function() {
+      showGrid = !showGrid;
+      btnToggleGrid.classList.toggle('active', showGrid);
+      btnToggleGrid.textContent = showGrid ? 'СЕТКА 3×3: ВКЛ' : 'СЕТКА 3×3: ВЫКЛ';
+      updateFrameOverlay();
+    });
+  }
+
+  var btnResetAll = document.getElementById('btnResetAll');
+  if (btnResetAll) {
+    btnResetAll.addEventListener('click', function() {
+      // Reset camera to standard 3/4 beauty view
+      var p = poses.front34;
+      targetSpherical.theta = p.theta;
+      targetSpherical.phi = p.phi;
+      targetSpherical.radius = p.radius;
+      targetCenter.set(p.center.x, p.center.y, p.center.z);
+      targetRoll = 0.0;
+      targetFov = 38;
+      currentRatio = 'full';
+      showGrid = false;
+
+      elFovSlider.value = 38;
+      elFovVal.textContent = '38°';
+      elLensBadge.textContent = '35mm (38°)';
+      elRollSlider.value = 0;
+      elRollVal.textContent = '0°';
+
+      document.querySelectorAll('[data-pose]').forEach(function(b) {
+        b.classList.toggle('active', b.getAttribute('data-pose') === 'front34');
+      });
+      document.querySelectorAll('[data-lens]').forEach(function(b) {
+        b.classList.toggle('active', b.getAttribute('data-lens') === '35');
+      });
+      document.querySelectorAll('[data-target]').forEach(function(b) {
+        b.classList.toggle('active', b.getAttribute('data-target') === 'center');
+      });
+      document.querySelectorAll('[data-ratio]').forEach(function(b) {
+        b.classList.toggle('active', b.getAttribute('data-ratio') === 'full');
+      });
+
+      if (btnToggleGrid) {
+        btnToggleGrid.classList.remove('active');
+        btnToggleGrid.textContent = 'СЕТКА 3×3: ВЫКЛ';
+      }
+
+      updateFrameOverlay();
+      showToast('✓ НАСТРОЙКИ КАМЕРЫ СБРОШЕНЫ');
+    });
+  }
+
+  // --- 6. BACKGROUND PRESETS ---
   document.querySelectorAll('[data-bg]').forEach(function(btn) {
     btn.addEventListener('click', function() {
       document.querySelectorAll('[data-bg]').forEach(function(b) { b.classList.remove('active'); });
@@ -453,7 +766,7 @@ function setupUIHandlers() {
     });
   });
 
-  // 3. Headlights & Taillights
+  // --- 7. LIGHTING & EFFECTS ---
   var btnHeadlights = document.getElementById('btnHeadlights');
   btnHeadlights.addEventListener('click', function() {
     lightsOn = !lightsOn;
@@ -482,14 +795,12 @@ function setupUIHandlers() {
     }
   });
 
-  // 4. Turntable Rotation
   var btnTurntable = document.getElementById('btnTurntable');
   btnTurntable.addEventListener('click', function() {
     isTurntableActive = !isTurntableActive;
     btnTurntable.classList.toggle('active', isTurntableActive);
   });
 
-  // 5. Floor Toggle
   var btnFloor = document.getElementById('btnFloor');
   btnFloor.addEventListener('click', function() {
     floorVisible = !floorVisible;
@@ -498,14 +809,15 @@ function setupUIHandlers() {
     if (contactShadowMesh) contactShadowMesh.visible = floorVisible;
   });
 
-  // 6. Light Intensity Slider
   var lightSlider = document.getElementById('lightIntensity');
+  var lightVal = document.getElementById('lightVal');
   lightSlider.addEventListener('input', function() {
     var val = parseFloat(lightSlider.value);
     renderer.toneMappingExposure = val * 0.85;
+    if (lightVal) lightVal.textContent = val.toFixed(1) + '×';
   });
 
-  // 7. Resolution Picker
+  // --- 8. RESOLUTION PICKER ---
   document.querySelectorAll('[data-res]').forEach(function(btn) {
     btn.addEventListener('click', function() {
       document.querySelectorAll('[data-res]').forEach(function(b) { b.classList.remove('active'); });
@@ -514,13 +826,13 @@ function setupUIHandlers() {
     });
   });
 
-  // 8. Export Button Action
+  // --- 9. EXPORT BUTTON ACTION ---
   var btnExport = document.getElementById('btnExport');
   btnExport.addEventListener('click', function() {
     performHighResExport();
   });
 
-  // 9. Hide / Show UI Controls (H key & Toggle button)
+  // --- 10. UI TOGGLE & HOTKEYS ---
   var controlPanel = document.getElementById('controlPanel');
   var btnShowUI = document.getElementById('btnShowUI');
 
@@ -536,6 +848,26 @@ function setupUIHandlers() {
   btnShowUI.addEventListener('click', function() {
     controlPanel.classList.remove('hidden');
   });
+}
+
+function syncSlidersFromSpherical() {
+  if (!elAzimuthSlider || !elElevationSlider || !elDistanceSlider) return;
+
+  // Azimuth in degrees [0, 360)
+  var rawDeg = (spherical.theta * 180 / Math.PI) % 360;
+  if (rawDeg < 0) rawDeg += 360;
+  var azDeg = Math.round(rawDeg);
+  elAzimuthSlider.value = azDeg;
+  elAzimuthVal.textContent = azDeg + '°';
+
+  // Elevation in degrees [-10, 85]
+  var elevDeg = Math.round(90 - (spherical.phi * 180 / Math.PI));
+  elElevationSlider.value = elevDeg;
+  elElevationVal.textContent = elevDeg + '°';
+
+  // Distance in meters
+  elDistanceSlider.value = spherical.radius.toFixed(1);
+  elDistanceVal.textContent = spherical.radius.toFixed(1) + 'm';
 }
 
 function applyBackgroundMode(mode) {
@@ -560,27 +892,62 @@ function applyBackgroundMode(mode) {
 }
 
 /* ============================================================
-   HIGH-RESOLUTION ULTRA QUALITY PNG EXPORTER
+   HIGH-RESOLUTION ULTRA QUALITY PNG EXPORTER (WITH ASPECT RATIO)
    ============================================================ */
 function performHighResExport() {
-  var width = window.innerWidth;
-  var height = window.innerHeight;
+  var targetAspect = 16 / 9;
+  var isCustomRatio = true;
+
+  if (currentRatio === '16-9') {
+    targetAspect = 16 / 9;
+  } else if (currentRatio === '1-1') {
+    targetAspect = 1.0;
+  } else if (currentRatio === '9-16') {
+    targetAspect = 9 / 16;
+  } else if (currentRatio === '21-9') {
+    targetAspect = 21 / 9;
+  } else {
+    // 'full' -> match current viewport aspect exactly
+    targetAspect = window.innerWidth / window.innerHeight;
+    isCustomRatio = false;
+  }
+
+  // Calculate resolution based on exportRes and targetAspect
+  var width = 1920;
+  var height = Math.round(width / targetAspect);
 
   if (exportRes === '4k') {
-    width = 3840;
-    height = 2160;
+    if (targetAspect >= 1.0) {
+      width = 3840;
+      height = Math.round(width / targetAspect);
+    } else {
+      height = 3840;
+      width = Math.round(height * targetAspect);
+    }
   } else if (exportRes === '8k') {
-    width = 7680;
-    height = 4320;
+    if (targetAspect >= 1.0) {
+      width = 7680;
+      height = Math.round(width / targetAspect);
+    } else {
+      height = 7680;
+      width = Math.round(height * targetAspect);
+    }
   } else if (exportRes === '1080') {
-    width = 1920;
-    height = 1080;
+    if (targetAspect >= 1.0) {
+      width = 1920;
+      height = Math.round(width / targetAspect);
+    } else {
+      height = 1920;
+      width = Math.round(height * targetAspect);
+    }
   }
+
+  // Ensure even dimensions
+  if (width % 2 !== 0) width += 1;
+  if (height % 2 !== 0) height += 1;
 
   // 1. Save current viewport state
   var origAspect = camera.aspect;
-  var origWidth = renderer.domElement.width;
-  var origHeight = renderer.domElement.height;
   var origPixelRatio = renderer.getPixelRatio();
   var origBg = scene.background;
 
@@ -589,7 +956,7 @@ function performHighResExport() {
     scene.background = null;
   }
 
-  camera.aspect = width / height;
+  camera.aspect = targetAspect;
   camera.updateProjectionMatrix();
 
   renderer.setPixelRatio(1);
@@ -612,14 +979,15 @@ function performHighResExport() {
   // 6. Trigger Download
   var downloadLink = document.createElement('a');
   var timestamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-');
-  downloadLink.download = `ferrari-f40-${exportRes}-${timestamp}.png`;
+  var ratioTag = currentRatio === 'full' ? 'screen' : currentRatio;
+  downloadLink.download = `ferrari-f40-${exportRes}-${ratioTag}-${timestamp}.png`;
   downloadLink.href = dataUrl;
   document.body.appendChild(downloadLink);
   downloadLink.click();
   document.body.removeChild(downloadLink);
 
   // 7. Show success Toast
-  showToast(`✓ ЭКСПОРТ В PNG (${exportRes.toUpperCase()}) УСПЕШНО СКАЧАН`);
+  showToast(`✓ ЭКСПОРТ В PNG (${exportRes.toUpperCase()} • ${width}×${height}) УСПЕШНО СКАЧАН`);
 }
 
 function showToast(msg) {
@@ -628,7 +996,7 @@ function showToast(msg) {
   toast.classList.add('show');
   setTimeout(function() {
     toast.classList.remove('show');
-  }, 3200);
+  }, 3400);
 }
 
 /* ============================================================
@@ -647,9 +1015,25 @@ function animate() {
   spherical.theta  += (targetSpherical.theta  - spherical.theta)  * 0.08;
   spherical.phi    += (targetSpherical.phi    - spherical.phi)    * 0.08;
 
+  // Smooth FOV zoom
+  if (Math.abs(currentFov - targetFov) > 0.01) {
+    currentFov += (targetFov - currentFov) * 0.1;
+    camera.fov = currentFov;
+    camera.updateProjectionMatrix();
+  }
+
+  // Smooth Roll (Dutch Angle)
+  currentRoll += (targetRoll - currentRoll) * 0.08;
+
+  // Smooth Pan Center
   currentCenter.lerp(targetCenter, 0.08);
 
-  updateCameraFromSpherical();
+  updateCameraOrientation();
+
+  // If user is rotating with mouse or touch, or turntable is spinning, sync angle sliders
+  if (isDragging || isPanning || isTurntableActive || isUserInteracting) {
+    syncSlidersFromSpherical();
+  }
 
   // Gentle star twinkle if cosmos active
   if (starsGroup && starsGroup.visible) {
