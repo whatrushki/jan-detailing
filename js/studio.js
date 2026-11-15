@@ -4,17 +4,24 @@ import { GLTFLoader } from './libs/GLTFLoader.js';
 /* ============================================================
    JAN DETAILING - 3D PHOTO & EXPORT STUDIO (FERRARI F40)
    Full Pro Camera Control, Flexible Angles, Lenses, FOV,
-   Pan Targets, Aspect Ratio Guides & Ultra-Res PNG Exporter
+   High-Definition PCF Soft Shadow Mapping, Self-Shadowing,
+   Lighting Schemes & Ultra-Res PNG Exporter
    ============================================================ */
 
 var scene, camera, renderer, carGroup, carModel;
 var headlightMat, frontLensMat, rearLightMat;
 var studioFloor, contactShadowMesh, studioLightGroup;
+var keyLight, fillLight, rimLight, topLight, studioAmbient;
 var starsGroup;
 var currentBgMode = 'studio'; // 'studio', 'transparent', 'black', 'cosmos'
 var exportRes = '1080'; // '1080', '4k', '8k'
 var currentRatio = 'full'; // '16-9', '1-1', '9-16', '21-9', 'full'
 var isTurntableActive = false;
+var isLightSpinActive = false;
+var shadowsEnabled = true;
+var currentLightPreset = 'studio';
+var lightRigAngle = 45; // degrees around car
+var shadowContrast = 0.75;
 var lightsOn = false;
 var rearLightsOn = false;
 var floorVisible = true;
@@ -63,6 +70,11 @@ var elFovSlider = document.getElementById('fovSlider');
 var elFovVal = document.getElementById('fovVal');
 var elLensBadge = document.getElementById('lensBadge');
 var elOrbitBadge = document.getElementById('orbitBadge');
+var elShadowBadge = document.getElementById('shadowBadge');
+var elLightAngleSlider = document.getElementById('lightAngleSlider');
+var elLightAngleVal = document.getElementById('lightAngleVal');
+var elShadowContrastSlider = document.getElementById('shadowContrastSlider');
+var elShadowContrastVal = document.getElementById('shadowContrastVal');
 
 // Frame Overlay elements
 var frameOverlay = document.getElementById('frameOverlay');
@@ -82,7 +94,7 @@ function init() {
   camera = new THREE.PerspectiveCamera(currentFov, window.innerWidth / window.innerHeight, 0.1, 1000);
   updateCameraOrientation();
 
-  // 2. High-Precision Renderer with Alpha & Drawing Buffer Preservation
+  // 2. High-Precision Renderer with Ultra-Soft 4K PCF Shadow Map
   renderer = new THREE.WebGLRenderer({
     canvas: canvas,
     antialias: true,
@@ -95,13 +107,17 @@ function init() {
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
   renderer.toneMappingExposure = 1.25;
 
+  // Enable WebGL Shadow Map with Soft Penumbra
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
   // 3. Studio Environment Map (Equirectangular procedural softbox)
   scene.environment = createStudioEnvMap();
 
-  // 4. Studio Lighting
+  // 4. Studio Lighting & Shadow Casting Rig
   initStudioLighting();
 
-  // 5. Floor & Shadow
+  // 5. Floor & Shadow Occlusion
   initFloorAndShadow();
 
   // 6. Deep Cosmos Stars (for Cosmos preset)
@@ -123,7 +139,7 @@ function init() {
 }
 
 /* ============================================================
-   STUDIO ENVIRONMENT & LIGHTING
+   STUDIO ENVIRONMENT & LIGHTING WITH PCF SHADOW CASTING
    ============================================================ */
 function createStudioEnvMap() {
   var c = document.createElement('canvas');
@@ -158,51 +174,155 @@ function initStudioLighting() {
   studioLightGroup = new THREE.Group();
   scene.add(studioLightGroup);
 
-  // Key Overhead Directional Light
-  var keyLight = new THREE.DirectionalLight(0xffffff, 3.2);
-  keyLight.position.set(0, 12, 4);
+  // 1. Key Directional Light (Dominant Shadow Caster)
+  keyLight = new THREE.DirectionalLight(0xffffff, 3.8);
+  keyLight.position.set(3.5, 7.8, 3.8);
+  keyLight.castShadow = true;
+  keyLight.shadow.mapSize.width = 4096;
+  keyLight.shadow.mapSize.height = 4096;
+  keyLight.shadow.camera.near = 0.5;
+  keyLight.shadow.camera.far = 25.0;
+  keyLight.shadow.camera.left = -3.8;
+  keyLight.shadow.camera.right = 3.8;
+  keyLight.shadow.camera.top = 3.8;
+  keyLight.shadow.camera.bottom = -3.8;
+  keyLight.shadow.bias = -0.0001;
+  keyLight.shadow.normalBias = 0.025; // Eliminates shadow acne on curved panels
+  keyLight.shadow.radius = 2.2;
   studioLightGroup.add(keyLight);
 
-  // Rim / Backlight
-  var rimLight = new THREE.DirectionalLight(0xffffff, 2.4);
-  rimLight.position.set(-6, 8, -8);
-  studioLightGroup.add(rimLight);
-
-  // Soft Front Fill
-  var fillLight = new THREE.DirectionalLight(0xffffff, 1.8);
-  fillLight.position.set(8, 4, 8);
+  // 2. Secondary Cross Fill Light (Soft Secondary Shadow Caster)
+  fillLight = new THREE.DirectionalLight(0xffffff, 1.6);
+  fillLight.position.set(-4.5, 5.5, -2.5);
+  fillLight.castShadow = true;
+  fillLight.shadow.mapSize.width = 2048;
+  fillLight.shadow.mapSize.height = 2048;
+  fillLight.shadow.camera.near = 0.5;
+  fillLight.shadow.camera.far = 25.0;
+  fillLight.shadow.camera.left = -3.8;
+  fillLight.shadow.camera.right = 3.8;
+  fillLight.shadow.camera.top = 3.8;
+  fillLight.shadow.camera.bottom = -3.8;
+  fillLight.shadow.bias = -0.0001;
+  fillLight.shadow.normalBias = 0.025;
+  fillLight.shadow.radius = 3.5;
   studioLightGroup.add(fillLight);
 
-  // Ambient Base
-  var ambient = new THREE.AmbientLight(0xffffff, 0.65);
-  studioLightGroup.add(ambient);
+  // 3. Rim / Edge Accent Light (Backlight for rear wing & shoulder silhouettes)
+  rimLight = new THREE.DirectionalLight(0xffffff, 2.2);
+  rimLight.position.set(-0.5, 5.2, -6.5);
+  studioLightGroup.add(rimLight);
+
+  // 4. Soft Top Diffuser Light
+  topLight = new THREE.DirectionalLight(0xffffff, 1.0);
+  topLight.position.set(0, 10.0, 0);
+  studioLightGroup.add(topLight);
+
+  // 5. Studio Ambient Base (Balanced for deep, rich shadows)
+  studioAmbient = new THREE.AmbientLight(0xffffff, 0.25);
+  studioLightGroup.add(studioAmbient);
+
+  // Set initial rig rotation
+  studioLightGroup.rotation.y = (lightRigAngle * Math.PI) / 180;
+}
+
+function applyLightingPreset(preset) {
+  currentLightPreset = preset;
+  if (!keyLight || !fillLight || !rimLight || !topLight || !studioAmbient) return;
+
+  if (preset === 'drama') {
+    // High-Contrast Cinema Lighting with Deep Shadows
+    keyLight.position.set(4.5, 5.2, 3.2);
+    keyLight.intensity = 5.0;
+    fillLight.position.set(-4.8, 3.5, -2.0);
+    fillLight.intensity = 0.7;
+    rimLight.position.set(0, 6.0, -6.0);
+    rimLight.intensity = 3.2;
+    topLight.intensity = 0.3;
+    studioAmbient.intensity = 0.12;
+  } else if (preset === 'softbox') {
+    // Overhead Showroom Softbox
+    keyLight.position.set(0.2, 9.5, 0.8);
+    keyLight.intensity = 3.2;
+    fillLight.position.set(-3.0, 6.0, 2.0);
+    fillLight.intensity = 2.0;
+    rimLight.position.set(0, 5.0, -5.0);
+    rimLight.intensity = 1.8;
+    topLight.intensity = 2.2;
+    studioAmbient.intensity = 0.35;
+  } else if (preset === 'sunset') {
+    // Low Rake Angle with Long Dramatic Shadows
+    keyLight.position.set(6.5, 2.4, 3.5);
+    keyLight.intensity = 4.5;
+    fillLight.position.set(-4.0, 3.0, -3.0);
+    fillLight.intensity = 0.8;
+    rimLight.position.set(-2.0, 3.5, -5.5);
+    rimLight.intensity = 2.8;
+    topLight.intensity = 0.5;
+    studioAmbient.intensity = 0.18;
+  } else {
+    // 'studio': Standard Balanced Studio Photography
+    keyLight.position.set(3.5, 7.8, 3.8);
+    keyLight.intensity = 3.8;
+    fillLight.position.set(-4.5, 5.5, -2.5);
+    fillLight.intensity = 1.6;
+    rimLight.position.set(-0.5, 5.2, -6.5);
+    rimLight.intensity = 2.2;
+    topLight.intensity = 1.0;
+    studioAmbient.intensity = 0.25;
+  }
 }
 
 function initFloorAndShadow() {
-  // Reflective Matte Studio Floor
+  // Reflective Matte Studio Floor with Shadow Map Reception
   var floorGeo = new THREE.PlaneGeometry(80, 80);
   var floorMat = new THREE.MeshStandardMaterial({
     color: 0x07070a,
-    roughness: 0.22,
-    metalness: 0.15
+    roughness: 0.26,
+    metalness: 0.12
   });
   studioFloor = new THREE.Mesh(floorGeo, floorMat);
   studioFloor.rotation.x = -Math.PI / 2;
   studioFloor.position.y = -0.56;
+  studioFloor.receiveShadow = true;
   scene.add(studioFloor);
 
-  // Contact Shadow texture under car
+  // High-Definition Contact Ambient Occlusion Shadow Texture under car
   var shadowCanvas = document.createElement('canvas');
-  shadowCanvas.width = 512;
-  shadowCanvas.height = 512;
+  shadowCanvas.width = 1024;
+  shadowCanvas.height = 1024;
   var sCtx = shadowCanvas.getContext('2d');
-  var sGrad = sCtx.createRadialGradient(256, 256, 40, 256, 256, 240);
-  sGrad.addColorStop(0, 'rgba(0, 0, 0, 0.95)');
-  sGrad.addColorStop(0.4, 'rgba(0, 0, 0, 0.65)');
-  sGrad.addColorStop(0.8, 'rgba(0, 0, 0, 0.15)');
-  sGrad.addColorStop(1, 'transparent');
+
+  // Outer soft ambient occlusion pool
+  var sGrad = sCtx.createRadialGradient(512, 512, 60, 512, 512, 480);
+  sGrad.addColorStop(0.0, 'rgba(0, 0, 0, 0.85)');
+  sGrad.addColorStop(0.4, 'rgba(0, 0, 0, 0.55)');
+  sGrad.addColorStop(0.75, 'rgba(0, 0, 0, 0.15)');
+  sGrad.addColorStop(1.0, 'transparent');
   sCtx.fillStyle = sGrad;
-  sCtx.fillRect(0, 0, 512, 512);
+  sCtx.fillRect(0, 0, 1024, 1024);
+
+  // Deep under-chassis dark core
+  sCtx.fillStyle = 'rgba(0, 0, 0, 0.72)';
+  sCtx.beginPath();
+  sCtx.ellipse(512, 512, 380, 210, 0, 0, Math.PI * 2);
+  sCtx.fill();
+
+  // Dark contact patches under the 4 tires
+  var tireContact = function(cx, cy) {
+    var g = sCtx.createRadialGradient(cx, cy, 10, cx, cy, 80);
+    g.addColorStop(0.0, 'rgba(0, 0, 0, 0.95)');
+    g.addColorStop(0.55, 'rgba(0, 0, 0, 0.6)');
+    g.addColorStop(1.0, 'transparent');
+    sCtx.fillStyle = g;
+    sCtx.beginPath();
+    sCtx.arc(cx, cy, 80, 0, Math.PI * 2);
+    sCtx.fill();
+  };
+  tireContact(310, 310);
+  tireContact(714, 310);
+  tireContact(290, 714);
+  tireContact(734, 714);
 
   var shadowTex = new THREE.CanvasTexture(shadowCanvas);
   var shadowGeo = new THREE.PlaneGeometry(5.2, 3.2);
@@ -259,7 +379,7 @@ function initCosmosStars() {
 }
 
 /* ============================================================
-   LOAD FERRARI F40 MODEL
+   LOAD FERRARI F40 MODEL & CONFIGURE SELF-SHADOWING
    ============================================================ */
 function loadCarModel() {
   var loader = new GLTFLoader();
@@ -281,35 +401,40 @@ function loadCarModel() {
       var targetScale = 3.25 / maxDim;
       carModel.scale.setScalar(targetScale);
 
-      // Enhance materials for maximum photographic clarity
+      // Enable Cast Shadow & Receive Shadow on ALL meshes for deep realistic self-shadowing
       carModel.traverse(function(node) {
-        if (node.isMesh && node.material) {
-          var mat = node.material;
+        if (node.isMesh) {
+          node.castShadow = true;
+          node.receiveShadow = true;
 
-          // Paint: Mirror-finish Rosso Corsa clearcoat
-          if (mat.name === 'Paint' || mat.name.toLowerCase().includes('paint')) {
-            mat.roughness = 0.015;
-            mat.metalness = 0.38;
-            mat.clearcoat = 1.0;
-            mat.clearcoatRoughness = 0.002;
-          }
+          if (node.material) {
+            node.material.shadowSide = THREE.FrontSide;
 
-          // Lights
-          if (mat.name === 'Headlight') {
-            headlightMat = mat;
-            headlightMat.color.setRGB(1, 1, 1);
-            headlightMat.emissive = new THREE.Color(0x000000);
-            headlightMat.emissiveIntensity = 0;
-          }
-          if (mat.name === 'PaletteMaterial006') {
-            frontLensMat = mat;
-            frontLensMat.emissive = new THREE.Color(0x000000);
-            frontLensMat.emissiveIntensity = 0;
-          }
-          if (mat.name === 'RearLights') {
-            rearLightMat = mat;
-            rearLightMat.emissive = new THREE.Color(0x000000);
-            rearLightMat.emissiveIntensity = 0;
+            // Paint: Mirror-finish Rosso Corsa clearcoat
+            if (node.material.name === 'Paint' || node.material.name.toLowerCase().includes('paint')) {
+              node.material.roughness = 0.015;
+              node.material.metalness = 0.38;
+              node.material.clearcoat = 1.0;
+              node.material.clearcoatRoughness = 0.002;
+            }
+
+            // Real 3D Headlights & Taillights
+            if (node.material.name === 'Headlight') {
+              headlightMat = node.material;
+              headlightMat.color.setRGB(1, 1, 1);
+              headlightMat.emissive = new THREE.Color(0x000000);
+              headlightMat.emissiveIntensity = 0;
+            }
+            if (node.material.name === 'PaletteMaterial006') {
+              frontLensMat = node.material;
+              frontLensMat.emissive = new THREE.Color(0x000000);
+              frontLensMat.emissiveIntensity = 0;
+            }
+            if (node.material.name === 'RearLights') {
+              rearLightMat = node.material;
+              rearLightMat.emissive = new THREE.Color(0x000000);
+              rearLightMat.emissiveIntensity = 0;
+            }
           }
         }
       });
@@ -499,26 +624,22 @@ function updateFrameOverlay() {
   var boxW, boxH, boxX, boxY;
 
   if (currentAspect > targetAspect) {
-    // Screen is wider than target frame -> Pillarbox (bars on left & right)
     boxH = h * 0.92;
     boxW = boxH * targetAspect;
     boxX = (w - boxW) / 2;
     boxY = (h - boxH) / 2;
   } else {
-    // Screen is taller than target frame -> Letterbox (bars on top & bottom)
     boxW = w * 0.92;
     boxH = boxW / targetAspect;
     boxX = (w - boxW) / 2;
     boxY = (h - boxH) / 2;
   }
 
-  // Position frame box
   frameBox.style.left = boxX + 'px';
   frameBox.style.top = boxY + 'px';
   frameBox.style.width = boxW + 'px';
   frameBox.style.height = boxH + 'px';
 
-  // Position matte bars
   matteTop.style.left = '0px';
   matteTop.style.top = '0px';
   matteTop.style.width = '100%';
@@ -572,11 +693,9 @@ function setupUIHandlers() {
     targetFov = val;
     elFovVal.textContent = val + '°';
 
-    // Calculate approximate 35mm equivalent focal length
     var approxMm = Math.round(12 / Math.tan((val * Math.PI) / 360));
     elLensBadge.textContent = '~' + approxMm + 'mm (' + val + '°)';
 
-    // Update active lens button if matches
     document.querySelectorAll('[data-lens]').forEach(function(btn) {
       btn.classList.toggle('active', parseInt(btn.getAttribute('data-lens')) === approxMm);
     });
@@ -612,7 +731,6 @@ function setupUIHandlers() {
   });
 
   // --- 3. PRECISE CAMERA SLIDERS ---
-  // Azimuth Slider (0° to 360°)
   elAzimuthSlider.addEventListener('input', function() {
     var deg = parseFloat(elAzimuthSlider.value);
     targetSpherical.theta = (deg * Math.PI) / 180;
@@ -620,7 +738,6 @@ function setupUIHandlers() {
     document.querySelectorAll('[data-pose]').forEach(function(b) { b.classList.remove('active'); });
   });
 
-  // Elevation Slider (-10° to +85°)
   elElevationSlider.addEventListener('input', function() {
     var deg = parseFloat(elElevationSlider.value);
     targetSpherical.phi = ((90 - deg) * Math.PI) / 180;
@@ -628,21 +745,18 @@ function setupUIHandlers() {
     document.querySelectorAll('[data-pose]').forEach(function(b) { b.classList.remove('active'); });
   });
 
-  // Distance Slider (1.8m to 16.0m)
   elDistanceSlider.addEventListener('input', function() {
     var dist = parseFloat(elDistanceSlider.value);
     targetSpherical.radius = dist;
     elDistanceVal.textContent = dist.toFixed(1) + 'm';
   });
 
-  // Roll (Dutch Angle) Slider (-45° to +45°)
   elRollSlider.addEventListener('input', function() {
     var deg = parseFloat(elRollSlider.value);
     targetRoll = (deg * Math.PI) / 180;
     elRollVal.textContent = Math.round(deg) + '°';
   });
 
-  // Camera Height Quick Buttons
   document.querySelectorAll('[data-height]').forEach(function(btn) {
     btn.addEventListener('click', function() {
       var hMode = btn.getAttribute('data-height');
@@ -715,7 +829,6 @@ function setupUIHandlers() {
   var btnResetAll = document.getElementById('btnResetAll');
   if (btnResetAll) {
     btnResetAll.addEventListener('click', function() {
-      // Reset camera to standard 3/4 beauty view
       var p = poses.front34;
       targetSpherical.theta = p.theta;
       targetSpherical.phi = p.phi;
@@ -725,12 +838,19 @@ function setupUIHandlers() {
       targetFov = 38;
       currentRatio = 'full';
       showGrid = false;
+      lightRigAngle = 45;
+      if (studioLightGroup) studioLightGroup.rotation.y = (45 * Math.PI) / 180;
+      applyLightingPreset('studio');
 
       elFovSlider.value = 38;
       elFovVal.textContent = '38°';
       elLensBadge.textContent = '35mm (38°)';
       elRollSlider.value = 0;
       elRollVal.textContent = '0°';
+      elLightAngleSlider.value = 45;
+      elLightAngleVal.textContent = '45°';
+      elShadowContrastSlider.value = 75;
+      elShadowContrastVal.textContent = '75%';
 
       document.querySelectorAll('[data-pose]').forEach(function(b) {
         b.classList.toggle('active', b.getAttribute('data-pose') === 'front34');
@@ -744,6 +864,9 @@ function setupUIHandlers() {
       document.querySelectorAll('[data-ratio]').forEach(function(b) {
         b.classList.toggle('active', b.getAttribute('data-ratio') === 'full');
       });
+      document.querySelectorAll('[data-light-preset]').forEach(function(b) {
+        b.classList.toggle('active', b.getAttribute('data-light-preset') === 'studio');
+      });
 
       if (btnToggleGrid) {
         btnToggleGrid.classList.remove('active');
@@ -751,7 +874,7 @@ function setupUIHandlers() {
       }
 
       updateFrameOverlay();
-      showToast('✓ НАСТРОЙКИ КАМЕРЫ СБРОШЕНЫ');
+      showToast('✓ НАСТРОЙКИ КАМЕРЫ И СВЕТА СБРОШЕНЫ');
     });
   }
 
@@ -766,7 +889,80 @@ function setupUIHandlers() {
     });
   });
 
-  // --- 7. LIGHTING & EFFECTS ---
+  // --- 7. LIGHTING PRESETS & SHADOW RIG CONTROLS ---
+  document.querySelectorAll('[data-light-preset]').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      document.querySelectorAll('[data-light-preset]').forEach(function(b) { b.classList.remove('active'); });
+      btn.classList.add('active');
+
+      var preset = btn.getAttribute('data-light-preset');
+      applyLightingPreset(preset);
+      showToast(`СХЕМА СВЕТА: ${btn.textContent}`);
+    });
+  });
+
+  // Toggle Shadows on/off
+  var btnToggleShadows = document.getElementById('btnToggleShadows');
+  if (btnToggleShadows) {
+    btnToggleShadows.addEventListener('click', function() {
+      shadowsEnabled = !shadowsEnabled;
+      renderer.shadowMap.enabled = shadowsEnabled;
+      if (keyLight) keyLight.castShadow = shadowsEnabled;
+      if (fillLight) fillLight.castShadow = shadowsEnabled;
+
+      if (carModel) {
+        carModel.traverse(function(node) {
+          if (node.isMesh) {
+            node.castShadow = shadowsEnabled;
+            node.receiveShadow = shadowsEnabled;
+            if (node.material) node.material.needsUpdate = true;
+          }
+        });
+      }
+
+      btnToggleShadows.classList.toggle('active', shadowsEnabled);
+      btnToggleShadows.textContent = shadowsEnabled ? 'ТЕНИ: ВКЛ (4K)' : 'ТЕНИ: ВЫКЛ';
+      if (elShadowBadge) elShadowBadge.textContent = shadowsEnabled ? 'ТЕНИ: 4K HD' : 'ТЕНИ: ВЫКЛ';
+      showToast(shadowsEnabled ? '✓ ТЕНИ 4K ВКЛЮЧЕНЫ' : '✕ ТЕНИ ОТКЛЮЧЕНЫ');
+    });
+  }
+
+  // Light Angle Slider (Rotate lights around car)
+  if (elLightAngleSlider) {
+    elLightAngleSlider.addEventListener('input', function() {
+      var deg = parseFloat(elLightAngleSlider.value);
+      lightRigAngle = deg;
+      if (studioLightGroup) {
+        studioLightGroup.rotation.y = (deg * Math.PI) / 180;
+      }
+      if (elLightAngleVal) elLightAngleVal.textContent = Math.round(deg) + '°';
+    });
+  }
+
+  // Light Spin Button
+  var btnLightSpin = document.getElementById('btnLightSpin');
+  if (btnLightSpin) {
+    btnLightSpin.addEventListener('click', function() {
+      isLightSpinActive = !isLightSpinActive;
+      btnLightSpin.classList.toggle('active', isLightSpinActive);
+    });
+  }
+
+  // Shadow Contrast / Depth Slider (ambient light control)
+  if (elShadowContrastSlider) {
+    elShadowContrastSlider.addEventListener('input', function() {
+      var val = parseFloat(elShadowContrastSlider.value);
+      shadowContrast = val / 100;
+      // High contrast = low ambient = deep punchy shadows
+      var ambIntensity = (1.0 - shadowContrast) * 0.7 + 0.05;
+      if (studioAmbient) {
+        studioAmbient.intensity = ambIntensity;
+      }
+      if (elShadowContrastVal) elShadowContrastVal.textContent = Math.round(val) + '%';
+    });
+  }
+
+  // Headlights & Taillights
   var btnHeadlights = document.getElementById('btnHeadlights');
   btnHeadlights.addEventListener('click', function() {
     lightsOn = !lightsOn;
@@ -795,12 +991,14 @@ function setupUIHandlers() {
     }
   });
 
+  // Turntable
   var btnTurntable = document.getElementById('btnTurntable');
   btnTurntable.addEventListener('click', function() {
     isTurntableActive = !isTurntableActive;
     btnTurntable.classList.toggle('active', isTurntableActive);
   });
 
+  // Floor
   var btnFloor = document.getElementById('btnFloor');
   btnFloor.addEventListener('click', function() {
     floorVisible = !floorVisible;
@@ -809,6 +1007,7 @@ function setupUIHandlers() {
     if (contactShadowMesh) contactShadowMesh.visible = floorVisible;
   });
 
+  // Overall Tone Exposure Slider
   var lightSlider = document.getElementById('lightIntensity');
   var lightVal = document.getElementById('lightVal');
   lightSlider.addEventListener('input', function() {
@@ -853,19 +1052,16 @@ function setupUIHandlers() {
 function syncSlidersFromSpherical() {
   if (!elAzimuthSlider || !elElevationSlider || !elDistanceSlider) return;
 
-  // Azimuth in degrees [0, 360)
   var rawDeg = (spherical.theta * 180 / Math.PI) % 360;
   if (rawDeg < 0) rawDeg += 360;
   var azDeg = Math.round(rawDeg);
   elAzimuthSlider.value = azDeg;
   elAzimuthVal.textContent = azDeg + '°';
 
-  // Elevation in degrees [-10, 85]
   var elevDeg = Math.round(90 - (spherical.phi * 180 / Math.PI));
   elElevationSlider.value = elevDeg;
   elElevationVal.textContent = elevDeg + '°';
 
-  // Distance in meters
   elDistanceSlider.value = spherical.radius.toFixed(1);
   elDistanceVal.textContent = spherical.radius.toFixed(1) + 'm';
 }
@@ -892,11 +1088,10 @@ function applyBackgroundMode(mode) {
 }
 
 /* ============================================================
-   HIGH-RESOLUTION ULTRA QUALITY PNG EXPORTER (WITH ASPECT RATIO)
+   HIGH-RESOLUTION ULTRA QUALITY PNG EXPORTER (WITH SHADOWS)
    ============================================================ */
 function performHighResExport() {
   var targetAspect = 16 / 9;
-  var isCustomRatio = true;
 
   if (currentRatio === '16-9') {
     targetAspect = 16 / 9;
@@ -907,12 +1102,9 @@ function performHighResExport() {
   } else if (currentRatio === '21-9') {
     targetAspect = 21 / 9;
   } else {
-    // 'full' -> match current viewport aspect exactly
     targetAspect = window.innerWidth / window.innerHeight;
-    isCustomRatio = false;
   }
 
-  // Calculate resolution based on exportRes and targetAspect
   var width = 1920;
   var height = Math.round(width / targetAspect);
 
@@ -942,16 +1134,13 @@ function performHighResExport() {
     }
   }
 
-  // Ensure even dimensions
   if (width % 2 !== 0) width += 1;
   if (height % 2 !== 0) height += 1;
 
-  // 1. Save current viewport state
   var origAspect = camera.aspect;
   var origPixelRatio = renderer.getPixelRatio();
   var origBg = scene.background;
 
-  // 2. Configure for export
   if (currentBgMode === 'transparent') {
     scene.background = null;
   }
@@ -961,14 +1150,14 @@ function performHighResExport() {
 
   renderer.setPixelRatio(1);
   renderer.setSize(width, height, false);
+  renderer.shadowMap.needsUpdate = true;
 
-  // 3. Render at ultra-high resolution
+  // Render high-res snapshot
   renderer.render(scene, camera);
 
-  // 4. Capture Data URL as PNG
   var dataUrl = renderer.domElement.toDataURL('image/png', 1.0);
 
-  // 5. Restore Viewport
+  // Restore Viewport
   camera.aspect = origAspect;
   camera.updateProjectionMatrix();
   renderer.setPixelRatio(origPixelRatio);
@@ -976,7 +1165,7 @@ function performHighResExport() {
   scene.background = origBg;
   applyBackgroundMode(currentBgMode);
 
-  // 6. Trigger Download
+  // Trigger Download
   var downloadLink = document.createElement('a');
   var timestamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-');
   var ratioTag = currentRatio === 'full' ? 'screen' : currentRatio;
@@ -986,7 +1175,6 @@ function performHighResExport() {
   downloadLink.click();
   document.body.removeChild(downloadLink);
 
-  // 7. Show success Toast
   showToast(`✓ ЭКСПОРТ В PNG (${exportRes.toUpperCase()} • ${width}×${height}) УСПЕШНО СКАЧАН`);
 }
 
@@ -1005,9 +1193,17 @@ function showToast(msg) {
 function animate() {
   requestAnimationFrame(animate);
 
-  // Turntable slow majestic spin
+  // Turntable slow majestic car spin
   if (isTurntableActive) {
     targetSpherical.theta += 0.005;
+  }
+
+  // Light rig continuous spin
+  if (isLightSpinActive && studioLightGroup) {
+    studioLightGroup.rotation.y += 0.006;
+    var deg = Math.round(((studioLightGroup.rotation.y * 180 / Math.PI) % 360 + 360) % 360);
+    if (elLightAngleSlider) elLightAngleSlider.value = deg;
+    if (elLightAngleVal) elLightAngleVal.textContent = deg + '°';
   }
 
   // Smooth inertial interpolation for orbit camera

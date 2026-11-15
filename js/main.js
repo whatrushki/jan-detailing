@@ -140,6 +140,8 @@ function initThree() {
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
   renderer.toneMappingExposure = 1.15;
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
   scene.environment = createMonochromeStudioEnvironment();
 
@@ -202,6 +204,17 @@ function initCinematicSunlight() {
   var sunLight = new THREE.DirectionalLight(0xffffff, 4.4);
   sunLight.position.set(26, 30, 20);
   sunLight.target.position.set(-0.5, 0.2, 0);
+  sunLight.castShadow = true;
+  sunLight.shadow.mapSize.width = 2048;
+  sunLight.shadow.mapSize.height = 2048;
+  sunLight.shadow.camera.near = 5;
+  sunLight.shadow.camera.far = 70;
+  sunLight.shadow.camera.left = -4;
+  sunLight.shadow.camera.right = 4;
+  sunLight.shadow.camera.top = 4;
+  sunLight.shadow.camera.bottom = -4;
+  sunLight.shadow.bias = -0.0001;
+  sunLight.shadow.normalBias = 0.025;
   scene.add(sunLight);
   scene.add(sunLight.target);
 
@@ -1008,8 +1021,14 @@ function loadFerrariF40() {
       window.__carModelTireOffset = carModelTireOffset;
 
       carModel.traverse(function(node) {
+        if (node.isMesh) {
+          node.castShadow = true;
+          node.receiveShadow = true;
+        }
+
         if (node.isMesh && node.material) {
           var mat = node.material;
+          mat.shadowSide = THREE.FrontSide;
 
           // Paint Material: High-Gloss Mirror Clearcoat
           if (mat.name === 'Paint' || mat.name.toLowerCase().includes('paint')) {
