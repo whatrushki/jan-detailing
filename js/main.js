@@ -155,6 +155,8 @@ function initThree() {
   window.__currentCamPos = currentCamPos;
   window.__currentLookAt = currentLookAt;
   window.__currentFov = currentFov;
+  window.goToStep = goToStep;
+  window.triggerHyperjump = triggerHyperjump;
 }
 
 /* ============================================================
@@ -1741,6 +1743,7 @@ function animate() {
       rearLightMat.emissive.setRGB(targetLights * 1.0, targetLights * 0.02, 0);
       rearLightMat.emissiveIntensity = targetLights * 12.0;
     }
+  }
 
   if (raw >= 3.8 || isHyperjumpAnimating) {
     // 4. STAR WARS HYPERSPACE JUMP & LONG EXPOSURE LIGHT TRAILS (STEP 4)
@@ -1892,12 +1895,6 @@ function animate() {
     if (warpSingularityMesh) warpSingularityMesh.visible = false;
     if (lightTrailsMesh) lightTrailsMesh.visible = false;
     if (hyperjumpGroup) hyperjumpGroup.visible = false;
-  }
-
-        if (lightTrailsGeo.attributes.position) lightTrailsGeo.attributes.position.needsUpdate = true;
-        if (lightTrailsGeo.attributes.color) lightTrailsGeo.attributes.color.needsUpdate = true;
-      }
-    }
   }
 
   renderer.render(scene, camera);
